@@ -1,0 +1,17 @@
+# Eval workspace outputs
+deep-review-workspace/
+*-workspace/
+
+# Review output files
+deep-review-*.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
