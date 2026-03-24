@@ -635,6 +635,49 @@ Write the full report to a file. Default path: `./deep-review-<date>.md` or let 
 
 Print the full report in the conversation. For large reports, use collapsible sections for medium/low findings.
 
+### After delivery: Dismissed findings
+
+After the user has reviewed the findings (via any delivery method), ask if any findings should be suppressed in future reviews. This is especially important when users skip findings during task selection, or explicitly say a finding isn't relevant.
+
+```
+AskUserQuestion(
+  question: "Should any of these findings be ignored in future reviews? This adds them to REVIEW.md so they won't be flagged again.",
+  options: [
+    "Yes — let me pick which ones to dismiss",
+    "No — all findings are valid"
+  ]
+)
+```
+
+If the user chooses to dismiss findings, show the same numbered list used in task selection and let them pick using the same natural patterns (`1,3`, `all low`, `all except 1`, etc.).
+
+For each dismissed finding, append an entry to the repo's `REVIEW.md` file under the `## Ignore` section:
+
+```markdown
+## Ignore
+- security:"prompt injection via template tokens"  <!-- dismissed 2026-03-24: not exploitable in current architecture -->
+- bug:"DateTime.UtcNow testability"  <!-- dismissed 2026-03-24: tracked in ROADMAP.md as deferred item -->
+```
+
+Each entry includes:
+- The dimension and a pattern matching the finding's title
+- A date-stamped comment explaining why it was dismissed (use the user's words if they gave a reason, otherwise note "dismissed by reviewer")
+
+**If `REVIEW.md` does not exist in the repo root**, create it with the `## Ignore` section. Include a brief header comment:
+
+```markdown
+# Review Configuration
+
+## Ignore
+- security:"prompt injection via template tokens"  <!-- dismissed 2026-03-24: not exploitable in current architecture -->
+```
+
+**If `REVIEW.md` exists but has no `## Ignore` section**, append the section at the end.
+
+**If `REVIEW.md` exists and already has `## Ignore`**, append new entries to the existing list.
+
+After updating, confirm: "Added N dismissed findings to REVIEW.md. These won't be flagged in future reviews. You can edit or remove entries from REVIEW.md at any time."
+
 ---
 
 ## REVIEW.md Support
