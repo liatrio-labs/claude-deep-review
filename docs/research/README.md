@@ -16,6 +16,11 @@ Research artifacts that informed the design of claude-deep-review. Each document
 | 08 | [Handling Pre-existing Technical Debt](artifacts/08-handling-pre-existing-technical-debt.md) | How production systems avoid flooding PRs with tech debt findings. SonarQube's deterministic baseline matching is the gold standard. AI-native tools rely on diff-scoping and confidence filtering. Documents the consistency-vs-correctness tradeoff (no tool handles "new code following existing bad patterns" automatically). |
 | 09 | [Hierarchical Config File Design](artifacts/09-hierarchical-config-file-design.md) | Design patterns for directory-scoped configuration (REVIEW.md). Industry convergence on "nearest-only with explicit extends" after ESLint's painful cascading lessons. Recommends centralized root config with optional subdirectory overrides. Documents CLAUDE.md's additive merge model and CodeRabbit's path_instructions pattern. |
 | 10 | [Agent-Skill Architecture Patterns](artifacts/10-agent-skill-architecture-patterns.md) | Whether agents should delegate to skills for methodology. Conclusion: don't — Anthropic's own plugins use self-contained agents. System prompt instructions outperform mid-execution loaded instructions by 30%+ (Lost in the Middle paper). Debugging is 3-5x harder with split behavior. Subagent-skill interaction is buggy. |
+| 11 | [Incremental Review Patterns](artifacts/11-incremental-review-patterns.md) | How production tools handle re-reviews after new commits. Only CodeRabbit implements genuine incremental review (state persisted in hidden PR comments). Most tools re-analyze the full diff. Academic techniques (Infer's report diffing, SonarQube's new code period) offer a blueprint LLM tools haven't adopted. Comment lifecycle management and notification fatigue drive 60-80% noise rates. |
+| 12 | [Model Routing for Code Review](artifacts/12-model-routing-for-code-review.md) | Evidence for assigning different model tiers to different review subtasks. Anthropic's own plugin uses all-Sonnet, not Opus for bugs. SWE-bench Verified gap between Opus and Sonnet compressed to 1.2 points. DeepMind: "spend on workers, not the manager." Different models have complementary vulnerability-class detection profiles — the strongest case for multi-model security review. More intuition than rigorous evidence. |
+| 13 | [Cost and Token Economics](artifacts/13-cost-and-token-economics.md) | Multi-agent review costs $0.05-$25 per PR (500x range). Token duplication rates of 53-86% across frameworks. Quality plateaus at 4 agents. Prompt caching delivers 60-90% savings. Self-hosted optimized systems achieve $0.50-$1.50/PR vs Anthropic's $15-$25 managed service. Model costs falling 10-50x/year. The Faros AI Productivity Paradox: AI review may deliver higher organizational ROI than AI coding assistants. |
+| 14 | [Inter-Agent Debate and Challenge Rounds](artifacts/14-inter-agent-debate-and-challenge-rounds.md) | Majority voting, not debate, drives performance gains (martingale proof). Sycophancy corrupts verification in 18/20 configurations. Production systems favor pipelines over debate. Disagreement itself is the signal — route contradictions to blind challenge, testable claims to deterministic verification, ambiguous cases to human escalation. Challenge agents should see only the finding and code, never the original reasoning. |
+| 15 | [Developer Experience of Review Output](artifacts/15-developer-experience-of-review-output.md) | Engagement decays in ~10 days without tuning. Optimal volume: 5-6 comments per PR. Committable code suggestions see 60-70% implementation rates vs 36-43% for prose. Trust in AI accuracy at 29% (Stack Overflow 2025). Adoption threshold is 75-80% precision. Batch findings into single review events. Silence is a feature — post nothing on 29% of reviews. |
 
 ## How these informed the design
 
@@ -40,11 +45,19 @@ Key design decisions and which research artifacts support them:
 | Self-contained agent definitions (not skill delegation) | #10 | Anthropic's own plugins are self-contained; system prompt instructions outperform by 30%+ |
 | Max findings cap | #08 | Qodo defaults to 3 findings; configurable cap prevents noise in high-debt repos |
 | GitHub + GitLab VCS abstraction | #01 | Production tools support multiple platforms; auto-detection from git remote |
+| Incremental review with report diffing | #11 | Infer's introduced/fixed/preexisting classification; CodeRabbit's hidden PR comment state persistence |
+| Model routing: Sonnet default, Opus for security | #12 | SWE-bench gap compressed to 1.2 points; Anthropic's own plugin is all-Sonnet; complementary vulnerability-class profiles justify multi-model security |
+| Prompt caching for cost optimization | #13 | 70-80% of input tokens cacheable; 60-90% savings; self-hosted at $0.50-$1.50 vs $15-$25 managed |
+| Challenge round: blind challenge on contradictions only | #14 | Martingale proof: debate doesn't improve correctness; sycophancy in 18/20 configs; challenge agents must not see original reasoning |
+| Disagreement as difficulty signal | #14 | Ensemble disagreement correlates with finding importance; route to appropriate resolution mechanism rather than forcing consensus |
+| Max 5-6 comments per review | #15 | Engagement decays in ~10 days; adoption threshold 75-80% precision; silence is a feature |
+| Committable code suggestions in findings | #15 | 60-70% implementation rate vs 36-43% for prose-only; Graphite Agent: 67% of suggestions implemented |
+| Batch findings into single review event | #15 | Per-comment notifications cause auto-dismissal; one review event = one notification |
 
 ## Adding new research
 
 When adding new research artifacts:
-1. Number sequentially (next: `11-`)
+1. Number sequentially (next: `16-`)
 2. Use lowercase-kebab-case for filenames
 3. Place in the `artifacts/` directory
 4. Update this index with a summary row and any new design decision mappings
