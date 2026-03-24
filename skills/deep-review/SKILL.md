@@ -544,6 +544,7 @@ AskUserQuestion(
     "PR comments — Post findings as inline comments on the PR",
     "Markdown file — Save the full report as a .md file",
     "Chat — Display the report right here",
+    "Create tasks — Add findings to the task board for tracking",
     "All of the above"
   ]
 )
@@ -580,6 +581,51 @@ glab api projects/{project_id}/merge_requests/{number}/discussions \
 ```
 
 Use the platform-appropriate permalink format in comment bodies. After posting inline comments, post the executive summary as a top-level PR/MR comment.
+
+### Delivery: Create tasks
+
+When the user selects task creation, let them choose which findings become tasks:
+
+**Step 1: Display the findings summary for selection**
+
+Show a clean numbered list:
+
+```
+Findings available for task creation:
+
+  #1  [critical]  bug-3: SQL injection in user search endpoint (security-reviewer)
+  #2  [high]      bug-1: Off-by-one in pagination logic (bug-detector)
+  #3  [high]      sec-2: Missing auth check on /admin/export (security-reviewer)
+  #4  [medium]    err-1: Silent failure in webhook retry (bug-detector)
+  #5  [medium]    test-1: No tests for error path in PaymentService (test-analyzer)
+  #6  [low]       conv-1: Naming inconsistency in DTOs (conventions-and-intent)
+
+Which findings should become tasks?
+Examples: "all", "1,2,3", "all critical and high", "all except 6", "1-4"
+```
+
+**Step 2: Parse the user's selection**
+
+Support these natural patterns:
+- `all` — every finding
+- `1,3,5` — specific numbers
+- `1-4` — ranges
+- `all critical and high` — by severity level
+- `all except 4,6` — exclusion
+- `skip` or `none` — create no tasks
+
+**Step 3: Create one task per selected finding**
+
+For each selected finding, use `TaskCreate`:
+
+```
+TaskCreate(
+  subject: "FIX: [finding.title]",
+  description: "[finding.severity] [finding.dimension]\n\nFile: [finding.file]:[finding.line_start]\n\n[finding.description]\n\nSuggested fix: [finding.suggestion]"
+)
+```
+
+After creating all tasks, confirm: "Created N tasks from review findings."
 
 ### Delivery: Markdown file
 
