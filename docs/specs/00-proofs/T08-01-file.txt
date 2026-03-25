@@ -1,0 +1,12 @@
+Type: file
+Path: docs/research/README.md
+Contains: "Rich FIX task metadata" and "Light review mode" and "Soft default cap"
+Timestamp: 2026-03-24T21:45:00Z
+Status: PASS
+
+Verification: grep -n "Rich FIX\|Light review\|Soft default\|blind challenge\|Disagreement\|Committable\|Prompt cach\|Incremental report" docs/research/README.md
+Result: All 9 design decisions from T01-T07 are mapped in the table.
+
+Requirements verified:
+  R08.1 - All 9 new design decisions added: PASS (3 new rows added, 6 already present from earlier session)
+  R08.2 - No duplicate entries: PASS (verified by searching for each decision keyword)

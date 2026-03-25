@@ -53,6 +53,9 @@ Key design decisions and which research artifacts support them:
 | Max 5-6 comments per review | #15 | Engagement decays in ~10 days; adoption threshold 75-80% precision; silence is a feature |
 | Committable code suggestions in findings | #15 | 60-70% implementation rate vs 36-43% for prose-only; Graphite Agent: 67% of suggestions implemented |
 | Batch findings into single review event | #15 | Per-comment notifications cause auto-dismissal; one review event = one notification |
+| Rich FIX task metadata (cw-plan compatible) | #13, #15 | Self-contained work orders with structured requirements, proof artifacts, and toolchain detection enable autonomous execution via cw-execute |
+| Light review mode for trivial PRs | #13 | 31% of small PRs receive no findings; 2-agent mode cuts cost ~60%; quality plateaus at 4 agents |
+| Soft default cap of 8 findings | #15 | Engagement decays in ~10 days; 5-6 comments optimal; 75-80% precision is the adoption threshold; default cap prevents noise without requiring REVIEW.md setup |
 
 ## Adding new research
 
