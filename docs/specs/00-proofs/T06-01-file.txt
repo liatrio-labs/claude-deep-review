@@ -1,0 +1,17 @@
+Type: file
+Path: skills/deep-review/SKILL.md
+Contains: "prompt cache"
+Timestamp: 2026-03-24T21:15:00Z
+Status: PASS
+
+Verification: grep -n "prompt cache\|STATIC CONTENT\|DYNAMIC CONTENT" skills/deep-review/SKILL.md
+Result:
+  Line 399: Prompt caching explanation with 60-70% cost reduction
+  Line 404: ## --- STATIC CONTENT (cacheable across reviews) ---
+  Line 460: ## --- DYNAMIC CONTENT (changes per review) ---
+
+Requirements verified:
+  R06.1 - Prompt template reordered static first, dynamic last: PASS
+  R06.2 - Focus, exclusions, calibration, schema precede diff: PASS (lines 406-455)
+  R06.3 - Trust boundaries in dynamic section: PASS (lines 474-486)
+  R06.4 - Prompt caching note explains rationale: PASS (line 399)
