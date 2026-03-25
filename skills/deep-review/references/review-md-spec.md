@@ -112,14 +112,16 @@ An integer from 0-100. Findings below this confidence score are filtered out bef
 
 Maximum number of findings to include in the report. When the cap is hit, the highest-severity findings are kept and a note indicates how many were suppressed.
 
-Default: no limit. Set this in high-debt codebases to prevent review noise:
+Default: no limit — all findings that survive the validation pipeline appear in the report. Set this in high-debt codebases to prevent review noise. Use `0` to explicitly mean "no limit" (same as omitting the setting).
+
+Note: this controls findings in the **report**. PR inline comments have a separate cap of 8 (applied in Phase 6 delivery) to prevent notification fatigue — remaining findings appear in the summary comment.
 
 ```
 ## Max Findings
 15
 ```
 
-Suppressed findings are noted at the end of the report: "{N} additional findings were suppressed by the max_findings cap ({cap}). Increase in REVIEW.md or remove to see all findings."
+Suppressed findings are noted at the end of the report: "{N} additional findings were suppressed by the max_findings cap ({cap}). Set `max_findings: 0` or remove the setting to see all findings."
 
 ### Model Tier
 
