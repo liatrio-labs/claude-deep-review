@@ -61,7 +61,7 @@ Key design decisions and which research artifacts support them:
 | Python `json.dumps` for API payloads | #16 | Shell-constructed JSON fails due to double-escaping trap (JSON + bash metacharacters). Python serialization to temp file eliminates all escaping layers; `gh api --input` / `glab api --input` never see raw JSON in shell context |
 | Few-shot Agent tool call template for challenge round | #17 | LangChain benchmarking: 3.25x tool-calling compliance with exact format examples; separate study achieved 100% with TOOL_EXAMPLE + RETURN_FORMAT |
 | Self-verification checkpoint after 4f | #17 | OpenAI/Apollo: "most common failure: pretending to have completed a task"; self-check forces the model to audit its own tool_use emissions before proceeding |
-| Challenge round: every qualifying finding, 8 per wave, parallel dispatch | #17 | Parallel spawn in single message reduces perceived friction; waves of 8 balance throughput with proven parallel capacity from Phase 3 |
+| Challenge round: every qualifying finding, all parallel (cap 50) | #17 | Parallel spawn in single message reduces perceived friction; one agent per finding, all dispatched at once |
 | Cost framing: thoroughness over speed | #17 | Models implicitly optimize for lower-friction outputs; explicit framing that cost concerns don't override execution counteracts effort-minimization behavior |
 | Future: code-controlled challenge dispatch | #14, #17 | Anthropic's own guidance: mandatory steps are workflows, not agent decisions; StateFlow achieved 13-28% higher success rates with FSM-controlled transitions; McKinsey two-layer model eliminated step-skipping entirely |
 

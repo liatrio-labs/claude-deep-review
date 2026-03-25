@@ -126,11 +126,12 @@ See **SKILL.md Phase 5** for the primary instructions, MANDATORY GATE, Agent too
 2. **Spawn a fresh agent via the Agent tool** (Sonnet in Optimized mode, Opus in Frontier mode). See SKILL.md Phase 5 for the exact Agent tool call template. The agent receives ONLY:
    - The finding's `title` and `description` (never `evidence` or original reasoning)
    - The raw code just read
-   - Instructions to attempt to disprove the claim and return `{"confidence": <0-100>, "justification": "..."}`
-3. **Apply the blind verifier's result:**
-   - Confidence **< 50** → downgrade to advisory (medium severity)
-   - Confidence **≥ 75** → finding survives, boost confidence +10 (capped at 100)
-   - Confidence **50-74** → no severity change, flag as "contested" in methodology
+   - Instructions to try to disprove the claim, then return `{"confidence_claim_is_correct": <0-100>, "justification": "..."}` using 5-point anchors (0/25/50/75/100) rating how likely the claim is CORRECT
+3. **Apply the blind verifier's result** (based on `confidence_claim_is_correct`):
+   - **< 25** → challenger found evidence the claim is wrong. Non-security findings: **remove entirely**. Security findings: downgrade one severity level.
+   - **25-49** → challenger suspects the claim is wrong. Downgrade one severity level (critical→high, high→medium, medium→low).
+   - **50-74** → genuinely uncertain. No severity change, flag as "contested" in methodology.
+   - **≥ 75** → challenger couldn't disprove it. Finding survives, boost confidence +15 (capped at 100).
 
 **Design rationale:**
 - Blind agents see only the claim and the code, never the original reasoning → prevents sycophancy

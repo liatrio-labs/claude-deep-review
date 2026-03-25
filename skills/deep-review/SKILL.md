@@ -6,14 +6,7 @@ description: |
 
 # Deep Review
 
-A comprehensive code review system that dispatches parallel concern-specialized agents, independently validates each finding, deduplicates across agents, and delivers a unified report.
-
-**Key architectural choices:**
-- **Decompose by concern, not by file** — each agent sees relevant diffs and cross-file context, because bugs at module boundaries are invisible to file-scoped reviewers
-- **Context-pulling over context-pushing** — agents pull additional context via Read/Grep/LSP rather than receiving a massive context dump, reducing false positives by 51%
-- **Deterministic grounding before LLM judgment** — findings are verified against tool output before LLM validators judge them
-
-When in doubt about whether something is a real issue, err on the side of not reporting it. A review with 5 real issues is far more valuable than one with 5 real issues buried in 20 false positives.
+Concern-parallel agents with context-pulling and deterministic verification. When in doubt about whether something is a real issue, err on the side of not reporting it. A review with 5 real issues is far more valuable than one with 5 real issues buried in 20 false positives.
 
 **This is a deep review tool built for thoroughness, not speed.** The user chose this tool because they want aggressive, high-confidence review. Cost and time concerns do not justify skipping any phase — especially Phase 5 (blind challenge), which requires spawning sub-agents. Every phase exists because skipping it produces measurably worse results.
 
@@ -247,11 +240,7 @@ All agents can still **pull** additional context — scoping controls what is pr
 
 ### Agent failure handling
 
-If a subagent fails (crash, timeout, error):
-- Continue with findings from agents that completed.
-- Log failure in Review Methodology: "bug-detector: FAILED (timeout after 5 minutes)"
-- If the failed agent covered a critical dimension (security or bugs), warn the user.
-- Never silently skip a failed agent.
+If a subagent fails (crash, timeout, error): continue with completed agents, log the failure in Review Methodology, warn the user if the failed agent covered security or bugs, and never silently skip a failed agent.
 
 ---
 
@@ -295,7 +284,7 @@ If none are true, announce "Phase 5: No trigger conditions met — skipping chal
 
 ### Challenge dispatch
 
-Challenge **every finding** that meets the trigger conditions. Spawn up to 8 challenge agents in parallel in a single message with multiple Agent tool calls. If more than 8 findings need challenge, do a second wave after the first completes. Use Sonnet in Optimized mode, Opus in Frontier mode.
+Challenge **every finding** that meets the trigger conditions (up to 50). Spawn all challenge agents in parallel in a single message with multiple Agent tool calls. Use Sonnet in Optimized mode, Opus in Frontier mode.
 
 **Exact Agent tool call format — use this template for each finding:**
 
@@ -303,28 +292,41 @@ Challenge **every finding** that meets the trigger conditions. Spawn up to 8 cha
 Agent(
   description: "Blind challenge: {finding_id}",
   model: "sonnet",  // or "opus" in Frontier mode
-  prompt: "A code reviewer claims the following about this code:
+  prompt: "The following claim has been made about this code. Analyze whether the code actually contains the described issue.
 
-Title: {finding.title}
-Description: {finding.description}
+Claim: {finding.title}
+Details: {finding.description}
 
 Here is the raw code:
 {paste the code you read fresh from file:line_start-line_end}
 
-Your job is to attempt to DISPROVE this claim. Look for reasons it might be wrong:
-- Defensive code the reviewer missed
-- Framework guarantees that prevent the issue
+Your job is to try to DISPROVE this claim. Look for reasons it might be wrong:
+- Defensive code that prevents the issue
+- Framework guarantees that make it impossible
 - Type system protections
 - Documented intentional behavior
 
+If you found some evidence against the claim but it is not conclusive, that is valuable — report it. If you found no evidence against the claim despite thorough analysis, say so.
+
+After your analysis, rate how likely the claim is CORRECT (not how likely you are to disprove it):
+- 0 = definitely wrong, you found clear evidence the claim is false
+- 25 = probably wrong, you found evidence suggesting the code handles this correctly
+- 50 = genuinely uncertain, could go either way
+- 75 = probably correct, you found no meaningful counter-evidence
+- 100 = definitely correct, the issue is clearly present with no mitigating factors
+
 You MUST return ONLY a JSON object in this exact format, nothing else:
-{\"confidence\": <integer 0-100>, \"justification\": \"<one paragraph explanation>\"}"
+{\"confidence_claim_is_correct\": <integer 0-100>, \"justification\": \"<one paragraph explanation>\"}"
 )
 ```
 
 Do NOT include the original agent's reasoning or evidence in the prompt — only the title, description, and raw code.
 
-Apply results per `references/validation-pipeline.md`: confidence <50 → downgrade to medium; ≥75 → survives, boost +10; 50-74 → flag as contested.
+Apply results based on `confidence_claim_is_correct`:
+- **< 25** → challenger found evidence the claim is wrong. **Non-security findings: remove entirely.** Security findings: downgrade one severity level (security false negatives are costlier than false positives).
+- **25-49** → challenger suspects the claim is wrong but can't prove it. Downgrade one severity level (critical→high, high→medium, medium→low).
+- **50-74** → genuinely uncertain. Flag as "contested" in methodology, no severity change.
+- **≥ 75** → challenger couldn't disprove it. Finding survives, boost confidence +15 (capped at 100). Surviving adversarial challenge is stronger evidence than agent consensus.
 
 **Self-verification checkpoint:** Before proceeding to finalization, confirm: did you emit Agent tool_use blocks for the challenge round? If you wrote text reasoning instead of Agent tool calls, stop and spawn the agents now.
 
