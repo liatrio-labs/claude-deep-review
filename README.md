@@ -175,6 +175,6 @@ claude-deep-review/
 
 ## Requirements
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) with a Max or Team plan (for subagent support)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - `gh` CLI (for GitHub) or `glab` CLI (for GitLab)
 - Git
