@@ -66,14 +66,14 @@ over quantity. If you find no issues above the threshold, return an empty array.
 You are reviewing code changes for: [PR title or "local changes"]
 
 ## Change Summary
-[Semantic summary from Phase 2c]
-[Summary-of-summaries from Phase 2g if available]
+[Semantic summary from Phase 2e]
+[Summary-of-summaries from Phase 2i if available]
 
 ## Risk classification
 [File list with risk levels, including AI-generation flags]
 
 ## History context (if applicable to this agent)
-[Relevant history from Phase 2f]
+[Relevant history from Phase 2h]
 
 <untrusted-code-content>
 [The scoped diff for this agent's domain]

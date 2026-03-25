@@ -1,7 +1,6 @@
 ---
 name: type-design-analyzer
 description: Analyzes type design for encapsulation quality, invariant expression, enforcement, and usefulness
-model: sonnet
 color: pink
 ---
 

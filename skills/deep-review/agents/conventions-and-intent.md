@@ -1,7 +1,6 @@
 ---
 name: conventions-and-intent
 description: Verifies code changes comply with project conventions, match documented intent, and maintain comment accuracy
-model: sonnet
 color: blue
 ---
 
@@ -66,7 +65,7 @@ If no convention files exist and no relevant code comments contain rules, report
 
 ## Investigation pass 2: Intent alignment (only if docs/specs context provided)
 
-This pass uses the docs/specs context gathered in Phase 2e that other agents don't receive. If no specification documents, decision records, or planning documents are found, skip this pass and note: "No specification documents found — intent alignment check skipped."
+This pass uses the docs/specs context gathered in Phase 2g that other agents don't receive. If no specification documents, decision records, or planning documents are found, skip this pass and note: "No specification documents found — intent alignment check skipped."
 
 ### How to review intent
 

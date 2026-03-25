@@ -50,9 +50,9 @@ Key design decisions and which research artifacts support them:
 | Incremental review with report diffing | #11 | Infer's introduced/fixed/preexisting classification; CodeRabbit's hidden PR comment state persistence |
 | Model routing: Sonnet default, Opus for security | #12 | SWE-bench gap compressed to 1.2 points; Anthropic's own plugin is all-Sonnet; complementary vulnerability-class profiles justify multi-model security |
 | Prompt caching for cost optimization | #13 | 70-80% of input tokens cacheable; 60-90% savings; self-hosted at $0.50-$1.50 vs $15-$25 managed |
-| Challenge round: blind challenge on contradictions only | #14, #17 | Martingale proof: debate doesn't improve correctness; sycophancy in 18/20 configs; challenge agents must not see original reasoning |
+| Challenge round: blind challenge on critical/high, contradictions, and contested confidence | #14, #17 | Martingale proof: debate doesn't improve correctness; sycophancy in 18/20 configs; challenge agents must not see original reasoning |
 | Disagreement as difficulty signal | #14 | Ensemble disagreement correlates with finding importance; route to appropriate resolution mechanism rather than forcing consensus |
-| Max 5-6 comments per review | #15 | Engagement decays in ~10 days; adoption threshold 75-80% precision; silence is a feature |
+| Inline PR comment cap of 8 (research optimal: 5-6) | #15 | Engagement decays in ~10 days; adoption threshold 75-80% precision; silence is a feature; cap set at 8 to balance coverage with noise |
 | Committable code suggestions in findings | #15 | 60-70% implementation rate vs 36-43% for prose-only; Graphite Agent: 67% of suggestions implemented |
 | Batch findings into single review event | #15 | Per-comment notifications cause auto-dismissal; one review event = one notification |
 | Rich FIX task metadata (cw-plan compatible) | #13, #15 | Self-contained work orders with structured requirements, proof artifacts, and toolchain detection enable autonomous execution via cw-execute |
@@ -61,7 +61,7 @@ Key design decisions and which research artifacts support them:
 | Python `json.dumps` for API payloads | #16 | Shell-constructed JSON fails due to double-escaping trap (JSON + bash metacharacters). Python serialization to temp file eliminates all escaping layers; `gh api --input` / `glab api --input` never see raw JSON in shell context |
 | Few-shot Agent tool call template for challenge round | #17 | LangChain benchmarking: 3.25x tool-calling compliance with exact format examples; separate study achieved 100% with TOOL_EXAMPLE + RETURN_FORMAT |
 | Self-verification checkpoint after 4f | #17 | OpenAI/Apollo: "most common failure: pretending to have completed a task"; self-check forces the model to audit its own tool_use emissions before proceeding |
-| Challenge round capped at 5, parallel dispatch | #17 | Explicit cost bounding reduces avoidance (Calibrate-Then-Act framework); parallel spawn in single message reduces perceived friction |
+| Challenge round: every qualifying finding, 8 per wave, parallel dispatch | #17 | Parallel spawn in single message reduces perceived friction; waves of 8 balance throughput with proven parallel capacity from Phase 3 |
 | Cost framing: thoroughness over speed | #17 | Models implicitly optimize for lower-friction outputs; explicit framing that cost concerns don't override execution counteracts effort-minimization behavior |
 | Future: code-controlled challenge dispatch | #14, #17 | Anthropic's own guidance: mandatory steps are workflows, not agent decisions; StateFlow achieved 13-28% higher success rates with FSM-controlled transitions; McKinsey two-layer model eliminated step-skipping entirely |
 

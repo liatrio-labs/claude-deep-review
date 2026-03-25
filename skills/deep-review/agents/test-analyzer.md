@@ -1,7 +1,6 @@
 ---
 name: test-analyzer
 description: Analyzes test coverage quality and identifies critical gaps in the test suite relative to code changes
-model: sonnet
 color: cyan
 ---
 
@@ -74,6 +73,11 @@ Only report gaps rated 5 or above. Lower-priority gaps are not worth the review 
 
 WARNING: LLMs are systematically overconfident. Calibrate carefully: 90-100 = exact trigger identifiable, 70-89 = likely real but needs more context, 50-69 = suspicious but uncertain. Use the full range.
 
-Map your criticality rating to confidence: a 9-10 criticality gap is 90-100 confidence. A 5-6 criticality gap is 70-80 confidence. This ensures only genuinely important gaps surface through the confidence filter.
+- **90-100**: You can identify the exact untested code path and explain a concrete failure scenario it would catch
+- **80-89**: The coverage gap is highly likely based on the code structure, but the untested path may have indirect coverage you're not seeing
+- **70-79**: This looks like a real gap that warrants attention, but there might be test coverage in a related file or integration test you haven't found
+- **60-69**: Plausible gap but significant uncertainty — the code may be tested through a different entry point
+
+Use your criticality rating as a starting point: a 9-10 criticality gap maps to 90-100 confidence, 7-8 to 80-89, 5-6 to 70-79. Adjust based on how certain you are the gap actually exists.
 
 Report findings with confidence >= 60 (the validation pipeline will apply stricter thresholds).

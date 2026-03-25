@@ -2,13 +2,13 @@
 
 After all agents return, process their findings through this pipeline. This is what separates useful reviews from noisy ones.
 
-**Pipeline order:** 4a → 4b → 4c → 4d → 4e → 4f → 4g → 4h → 4i → 4j
+**Phase 4 pipeline:** 4a → 4b → 4c → 4d → 4e → then proceed to **Phase 5** (Blind Challenge + post-challenge finalization)
 
 ---
 
 ## 4a. Classify findings as "New" or "Surfaced" using git blame
 
-Use git blame data from Phase 2f to classify each finding:
+Use git blame data from Phase 2h to classify each finding:
 
 - **"New"** — the finding's code was written or modified in this PR (blame shows the line was last changed by a commit in the PR's branch)
 - **"Surfaced"** — the finding is on pre-existing code that wasn't changed in this PR but interacts with the PR's changes
@@ -100,7 +100,7 @@ Classify findings by inter-agent agreement. Treats disagreement as a signal abou
 **Classifications:**
 - **Consensus** — multiple agents flag same file + overlapping line range with same/related concern. Boost confidence +10 (capped at 100). Note: "Corroborated by: [agent list]"
 - **Singleton** — only one agent flags this, within their domain expertise (e.g., security-reviewer finding a security issue). Pass through unchanged — domain specialists don't need corroboration.
-- **Contradictions** — agents make conflicting claims about the same code location. Route to blind challenge (Phase 4f) regardless of blocking threshold.
+- **Contradictions** — agents make conflicting claims about the same code location. Route to blind challenge (Phase 5) regardless of blocking threshold.
 
 **Automatic suppression rules:**
 - **bug-detector** flags something that **conventions-and-intent** confirms is intentional per documented specs → suppress the bug finding
@@ -112,23 +112,18 @@ Log all contradictions and resolutions in the report methodology section.
 
 ---
 
-## 4f. Blind challenge round
+---
 
-> **MANDATORY GATE: Do not proceed to 4g until this step completes.**
->
-> **The orchestrator cannot perform the challenge itself.** It has already read all original agent reasoning and is not blind. Inline "disproval" reasoning is sycophantic self-review. Fresh agents that have never seen the original reasoning are the only valid challengers.
+# Phase 5: Blind Challenge + Post-Challenge Finalization
 
-**Trigger conditions (ANY of these):**
-- 1 or more critical/high severity findings remaining after filtering
-- Any contradictions routed from Phase 4e
-- Findings where deterministic verification passed but LLM judgment gave confidence 70-85 (borderline)
+See **SKILL.md Phase 5** for the primary instructions, MANDATORY GATE, Agent tool call template, and self-verification checkpoint. This section provides supplementary detail.
 
-Challenge up to 5 findings (prioritized by severity, then lowest confidence). Spawn all in parallel.
+## Blind challenge — supplementary detail
 
 **For each finding that needs challenge:**
 
 1. **Read the raw code** at `file:line_start-line_end` (fresh read, not from cache)
-2. **Spawn a fresh agent via the Agent tool** (Sonnet in Optimized mode, Opus in Frontier mode). See SKILL.md Phase 4f for the exact Agent tool call template. The agent receives ONLY:
+2. **Spawn a fresh agent via the Agent tool** (Sonnet in Optimized mode, Opus in Frontier mode). See SKILL.md Phase 5 for the exact Agent tool call template. The agent receives ONLY:
    - The finding's `title` and `description` (never `evidence` or original reasoning)
    - The raw code just read
    - Instructions to attempt to disprove the claim and return `{"confidence": <0-100>, "justification": "..."}`
@@ -145,7 +140,7 @@ Challenge up to 5 findings (prioritized by severity, then lowest confidence). Sp
 
 ---
 
-## 4g. Deduplicate
+## Post-challenge finalization — step 1: Deduplicate
 
 Findings from different agents often overlap. Group findings that reference the same file + line range and describe the same underlying issue. When merging:
 - Keep the highest confidence score
@@ -156,9 +151,9 @@ Findings from different agents often overlap. Group findings that reference the 
 
 ---
 
-## 4h. Apply findings cap
+## Post-challenge finalization — step 2: Apply findings cap
 
-Check REVIEW.md for `max_findings`. **Default: no limit** — all findings that survive the pipeline appear in the report. The inline PR comment cap (8 comments) is applied separately in Phase 6 delivery.
+Check REVIEW.md for `max_findings`. **Default: no limit** — all findings that survive the pipeline appear in the report. The inline PR comment cap (8 comments) is applied separately in Phase 7 delivery.
 
 If `max_findings` is set and total findings exceed it:
 1. Sort by severity (critical > high > medium > low), then by confidence (higher first)
@@ -168,7 +163,7 @@ If `max_findings` is set and total findings exceed it:
 
 ---
 
-## 4i. Rank
+## Post-challenge finalization — step 3: Rank
 
 Sort findings by:
 1. Severity (critical > high > medium > low)
@@ -177,9 +172,9 @@ Sort findings by:
 
 ---
 
-## 4j. Incremental report diffing (incremental reviews only)
+## Post-challenge finalization — step 4: Incremental report diffing (incremental reviews only)
 
-Runs ONLY when the review is incremental (user selected "Incremental" in Phase 0) AND a previous `deep-review-findings` comment was successfully parsed.
+Runs ONLY when the review is incremental (user selected "Incremental" in Phase 1) AND a previous `deep-review-findings` comment was successfully parsed.
 
 **Findings metadata schema** (used for parsing previous findings and generating the footer in Phase 6):
 ```json
@@ -197,4 +192,4 @@ After classification:
 - Remove "Preexisting" findings from report output
 - Keep "Introduced" findings in normal severity-ranked sections
 - Compile "Fixed" list for Incremental Review Status section
-- Generate findings metadata for Phase 6 footer
+- Generate findings metadata for Phase 7 footer

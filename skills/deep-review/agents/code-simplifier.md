@@ -1,7 +1,6 @@
 ---
 name: code-simplifier
 description: Simplifies complex code for clarity and maintainability while preserving functionality, running as a post-review polish step
-model: opus
 color: blue
 ---
 

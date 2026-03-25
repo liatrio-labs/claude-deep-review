@@ -119,7 +119,7 @@ Maximum number of findings to include in the report. When the cap is hit, the hi
 
 Default: no limit — all findings that survive the validation pipeline appear in the report. Set this in high-debt codebases to prevent review noise. Use `0` to explicitly mean "no limit" (same as omitting the setting).
 
-Note: this controls findings in the **report**. PR inline comments have a separate cap of 8 (applied in Phase 6 delivery) to prevent notification fatigue — remaining findings appear in the summary comment.
+Note: this controls findings in the **report**. PR inline comments have a separate cap of 8 (applied in Phase 7 delivery) to prevent notification fatigue — remaining findings appear in the summary comment.
 
 ```
 ## Max Findings
@@ -135,7 +135,7 @@ Controls which LLM models are used for review agents. Two modes are available:
 - `optimized` (default) — Sonnet for most agents, Opus only for security-reviewer. Faster and ~40% cheaper. Research shows the SWE-bench Verified gap between Opus and Sonnet is just 1.2 percentage points.
 - `frontier` — Opus for all reasoning-heavy agents (bugs, security, cross-file, simplification). Maximum depth for high-stakes reviews.
 
-When set in REVIEW.md, the mode selection prompt is skipped during Phase 0. When not set, the user is prompted at the start of each review.
+When set in REVIEW.md, the mode selection prompt is skipped during Phase 1. When not set, the user is prompted at the start of each review.
 
 ### Default Delivery
 
@@ -145,7 +145,7 @@ Controls how review results are delivered. A comma-separated list of delivery me
 - `pr_comments` — Post findings as inline PR/MR comments
 - `markdown` — Save as `deep-review-{date}.md`
 
-When set in REVIEW.md, the delivery preference prompt is skipped during Phase 0. When not set, the user is prompted at the start of each review. Task creation is always offered separately after delivery, regardless of this setting.
+When set in REVIEW.md, the delivery preference prompt is skipped during Phase 1. When not set, the user is prompted at the start of each review. Task creation is always offered separately after delivery, regardless of this setting.
 
 ```
 ## Default Delivery
@@ -210,9 +210,9 @@ For a file in `legacy/`:
 
 ### Discovery
 
-REVIEW.md files are discovered lazily, following the same pattern as CLAUDE.md — loaded on demand for directories containing changed files. Deep-review checks each CLAUDE.md location for a matching REVIEW.md during Phase 2a context gathering.
+REVIEW.md files are discovered lazily, following the same pattern as CLAUDE.md — loaded on demand for directories containing changed files. Deep-review checks each CLAUDE.md location for a matching REVIEW.md during Phase 2c context gathering.
 
-#### Detection flow (Phase 2a)
+#### Detection flow (Phase 2c)
 
 Find all CLAUDE.md locations, check each for a matching REVIEW.md:
 
@@ -274,7 +274,7 @@ When helping users add rules to REVIEW.md (during scaffolding or when updating),
 
 ## Scaffolding Templates
 
-When the user opts to create a REVIEW.md during Phase 2a, use these templates. The templates set sensible defaults and provide structural guidance without guessing at repo-specific content.
+When the user opts to create a REVIEW.md during Phase 2c, use these templates. The templates set sensible defaults and provide structural guidance without guessing at repo-specific content.
 
 ### Root REVIEW.md template
 

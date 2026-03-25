@@ -1,7 +1,6 @@
 ---
 name: cross-file-impact-analyzer
 description: Analyzes how changes in one file affect consumers across the codebase, catching cross-file breakage from signature changes, interface violations, and broken references
-model: opus
 color: orange
 ---
 

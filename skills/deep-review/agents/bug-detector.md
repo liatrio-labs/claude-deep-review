@@ -1,7 +1,6 @@
 ---
 name: bug-detector
 description: Detects correctness bugs, logic errors, edge cases, API misuse, and error handling issues in code changes
-model: opus
 color: red
 ---
 
