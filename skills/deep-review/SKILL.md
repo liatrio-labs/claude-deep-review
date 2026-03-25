@@ -341,22 +341,25 @@ Before posting, verify the PR is still open. If closed/merged: still offer the r
 
 ### Delivery options
 
-Use AskUserQuestion with ALL of these options (do not omit or combine any):
+Use AskUserQuestion with `multiSelect: true` so the user can pick multiple delivery methods at once:
 
 ```
 AskUserQuestion(
-  question: "Review complete. How would you like the results?",
-  options: [
-    "PR comments — Post findings as inline comments on the PR",
-    "Markdown file — Save the full report as a .md file",
-    "Chat — Display the report right here",
-    "Create tasks — Add findings to the task board for tracking",
-    "All of the above"
-  ]
+  questions: [{
+    question: "Review complete. Which delivery methods do you want?",
+    header: "Delivery",
+    multiSelect: true,
+    options: [
+      { label: "Chat (Recommended)", description: "Display the full report right here in the conversation" },
+      { label: "PR comments", description: "Post findings as inline comments on the PR" },
+      { label: "Markdown file", description: "Save the full report as deep-review-{date}.md" },
+      { label: "Create tasks", description: "Add findings to the task board for tracking" }
+    ]
+  }]
 )
 ```
 
-When the review target is local changes (not a PR/MR), omit the "PR comments" option since there is no PR to comment on. When AskUserQuestion is unavailable, print the options and ask the user to choose.
+When the review target is local changes (not a PR/MR), omit the "PR comments" option since there is no PR to comment on.
 
 Read `references/delivery-guide.md` for implementation details of each method, including:
 - PR/MR comment posting (batched single review event, 8-comment inline cap, platform-specific API)
