@@ -22,6 +22,7 @@ Research artifacts that informed the design of claude-deep-review. Each document
 | 14 | [Inter-Agent Debate and Challenge Rounds](artifacts/14-inter-agent-debate-and-challenge-rounds.md) | Majority voting, not debate, drives performance gains (martingale proof). Sycophancy corrupts verification in 18/20 configurations. Production systems favor pipelines over debate. Disagreement itself is the signal — route contradictions to blind challenge, testable claims to deterministic verification, ambiguous cases to human escalation. Challenge agents should see only the finding and code, never the original reasoning. |
 | 15 | [Developer Experience of Review Output](artifacts/15-developer-experience-of-review-output.md) | Engagement decays in ~10 days without tuning. Optimal volume: 5-6 comments per PR. Committable code suggestions see 60-70% implementation rates vs 36-43% for prose. Trust in AI accuracy at 29% (Stack Overflow 2025). Adoption threshold is 75-80% precision. Batch findings into single review events. Silence is a feature — post nothing on 29% of reviews. |
 | 16 | [Reliable API Payload Patterns](artifacts/16-reliable-api-payload-patterns.md) | Why shell-constructed JSON fails for AI agents (double-escaping trap). Python `json.dumps()` to temp file → `gh api --input` is the most reliable pattern. Covers GitHub batched PR reviews, GitLab MR discussions with position data, universal Python helper, `jq --arg` as shell-native alternative. `-f`/`-F` flags cannot construct `comments` arrays. |
+| 17 | [Enforcing Mandatory Pipeline Steps](artifacts/17-enforcing-mandatory-pipeline-steps.md) | Why LLM orchestrators consistently skip expensive-but-mandatory pipeline steps despite explicit instructions. Documents the "acknowledge-then-skip" anti-pattern (sycophantic acknowledgment + cost rationalization). Four-layer enforcement hierarchy: code-controlled dispatch > API-level forced tool calls > post-call verification > prompt hardening. Production frameworks (LangGraph, AutoGen, StateFlow) all enforce mandatory steps through code, not prompts. Layer 4 techniques: few-shot tool call templates (3.25x improvement), self-verification checkpoints, instruction positioning (U-shaped attention curve), cost framing. Anthropic's own guidance: mandatory steps are workflows, not agent decisions. |
 
 ## How these informed the design
 
@@ -49,7 +50,7 @@ Key design decisions and which research artifacts support them:
 | Incremental review with report diffing | #11 | Infer's introduced/fixed/preexisting classification; CodeRabbit's hidden PR comment state persistence |
 | Model routing: Sonnet default, Opus for security | #12 | SWE-bench gap compressed to 1.2 points; Anthropic's own plugin is all-Sonnet; complementary vulnerability-class profiles justify multi-model security |
 | Prompt caching for cost optimization | #13 | 70-80% of input tokens cacheable; 60-90% savings; self-hosted at $0.50-$1.50 vs $15-$25 managed |
-| Challenge round: blind challenge on contradictions only | #14 | Martingale proof: debate doesn't improve correctness; sycophancy in 18/20 configs; challenge agents must not see original reasoning |
+| Challenge round: blind challenge on contradictions only | #14, #17 | Martingale proof: debate doesn't improve correctness; sycophancy in 18/20 configs; challenge agents must not see original reasoning |
 | Disagreement as difficulty signal | #14 | Ensemble disagreement correlates with finding importance; route to appropriate resolution mechanism rather than forcing consensus |
 | Max 5-6 comments per review | #15 | Engagement decays in ~10 days; adoption threshold 75-80% precision; silence is a feature |
 | Committable code suggestions in findings | #15 | 60-70% implementation rate vs 36-43% for prose-only; Graphite Agent: 67% of suggestions implemented |
@@ -58,11 +59,16 @@ Key design decisions and which research artifacts support them:
 | Light review mode for trivial PRs | #13 | 31% of small PRs receive no findings; 2-agent mode cuts cost ~60%; quality plateaus at 4 agents |
 | Soft default cap of 8 findings | #15 | Engagement decays in ~10 days; 5-6 comments optimal; 75-80% precision is the adoption threshold; default cap prevents noise without requiring REVIEW.md setup |
 | Python `json.dumps` for API payloads | #16 | Shell-constructed JSON fails due to double-escaping trap (JSON + bash metacharacters). Python serialization to temp file eliminates all escaping layers; `gh api --input` / `glab api --input` never see raw JSON in shell context |
+| Few-shot Agent tool call template for challenge round | #17 | LangChain benchmarking: 3.25x tool-calling compliance with exact format examples; separate study achieved 100% with TOOL_EXAMPLE + RETURN_FORMAT |
+| Self-verification checkpoint after 4f | #17 | OpenAI/Apollo: "most common failure: pretending to have completed a task"; self-check forces the model to audit its own tool_use emissions before proceeding |
+| Challenge round capped at 5, parallel dispatch | #17 | Explicit cost bounding reduces avoidance (Calibrate-Then-Act framework); parallel spawn in single message reduces perceived friction |
+| Cost framing: thoroughness over speed | #17 | Models implicitly optimize for lower-friction outputs; explicit framing that cost concerns don't override execution counteracts effort-minimization behavior |
+| Future: code-controlled challenge dispatch | #14, #17 | Anthropic's own guidance: mandatory steps are workflows, not agent decisions; StateFlow achieved 13-28% higher success rates with FSM-controlled transitions; McKinsey two-layer model eliminated step-skipping entirely |
 
 ## Adding new research
 
 When adding new research artifacts:
-1. Number sequentially (next: `17-`)
+1. Number sequentially (next: `18-`)
 2. Use lowercase-kebab-case for filenames
 3. Place in the `artifacts/` directory
 4. Update this index with a summary row and any new design decision mappings

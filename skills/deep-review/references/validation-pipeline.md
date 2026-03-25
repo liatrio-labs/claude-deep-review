@@ -115,24 +115,23 @@ Log all contradictions and resolutions in the report methodology section.
 ## 4f. Blind challenge round
 
 > **MANDATORY GATE: Do not proceed to 4g until this step completes.**
-> Check the trigger conditions below. If ANY are true, you MUST spawn blind challenge agents NOW.
 >
-> Deterministic verification (4b) checks whether a finding's FACTUAL claims are correct (right file, right line, symbol exists). Blind challenge (4f) checks whether a finding's INTERPRETATION is correct (is this actually a bug, or is there a defense the original agent missed?). These test different things — passing 4b does not make 4f redundant.
-
-Uses **fresh blind agents** — not the original reviewers — because research proves agents sharing context exhibit sycophantic confirmation in 18/20 tested configurations, and multi-agent debate follows a martingale (expected correctness unchanged across rounds).
+> **The orchestrator cannot perform the challenge itself.** It has already read all original agent reasoning and is not blind. Inline "disproval" reasoning is sycophantic self-review. Fresh agents that have never seen the original reasoning are the only valid challengers.
 
 **Trigger conditions (ANY of these):**
 - 1 or more critical/high severity findings remaining after filtering
 - Any contradictions routed from Phase 4e
 - Findings where deterministic verification passed but LLM judgment gave confidence 70-85 (borderline)
 
+Challenge up to 5 findings (prioritized by severity, then lowest confidence). Spawn all in parallel.
+
 **For each finding that needs challenge:**
 
 1. **Read the raw code** at `file:line_start-line_end` (fresh read, not from cache)
-2. **Spawn a fresh Sonnet agent** with ONLY:
-   - The finding's `title` and `description` (do NOT include `evidence` or original reasoning — prevents sycophancy)
+2. **Spawn a fresh agent via the Agent tool** (Sonnet in Optimized mode, Opus in Frontier mode). See SKILL.md Phase 4f for the exact Agent tool call template. The agent receives ONLY:
+   - The finding's `title` and `description` (never `evidence` or original reasoning)
    - The raw code just read
-   - Instructions: "A code reviewer claims the following about this code. Your job is to attempt to disprove this claim. Examine the code carefully and look for reasons the claim might be wrong — defensive code the reviewer missed, framework guarantees, type system protections, or documented intentional behavior. Return a JSON object: `{\"confidence\": <0-100>, \"justification\": \"<brief explanation>\"}`"
+   - Instructions to attempt to disprove the claim and return `{"confidence": <0-100>, "justification": "..."}`
 3. **Apply the blind verifier's result:**
    - Confidence **< 50** → downgrade to advisory (medium severity)
    - Confidence **≥ 75** → finding survives, boost confidence +10 (capped at 100)

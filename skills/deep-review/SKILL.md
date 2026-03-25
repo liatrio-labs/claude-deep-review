@@ -198,23 +198,9 @@ Scan for AI co-author trailers, attribution comments, AI tool metadata. **Elevat
 
 ### 2i. Determine review dimensions
 
-All on by default unless REVIEW.md disables them:
+All on by default unless REVIEW.md disables them. In **Optimized** mode, all agents use Sonnet except security-reviewer (always Opus — deeper reasoning for inter-procedural data-flow analysis). In **Frontier** mode, all agents use Opus. Pre-flight checks always use Haiku.
 
-| Dimension | Agent | Optimized | Frontier | Condition to skip |
-|-----------|-------|-----------|----------|-------------------|
-| Correctness/Bugs + Error Handling | bug-detector | Sonnet | Opus | — |
-| Security | security-reviewer | **Opus** | **Opus** | — |
-| Cross-file impact | cross-file-impact-analyzer | Sonnet | Opus | — |
-| Test coverage | test-analyzer | Sonnet | Opus | No test files in repo |
-| Conventions + Intent | conventions-and-intent | Sonnet | Opus | No CLAUDE.md AND no docs/specs |
-| Type design | type-design-analyzer | Sonnet | Opus | No new types introduced |
-| Code simplification | code-simplifier | Sonnet | Opus | Only POST-review if no critical/high |
-| Change summarizer (2c) | — | Sonnet | Opus | — |
-| Validation agents (4b) | — | Sonnet | Opus | — |
-| Blind challenge agents (4f) | — | Sonnet | Opus | Conditional |
-| Pre-flight (Phase 0) | — | Haiku | Haiku | — |
-
-> **Why security always gets Opus:** Different models have complementary vulnerability-class detection profiles — Claude finds IDOR at 22% but SQLi at 5%, while other models show inverse patterns. Opus provides the deepest reasoning for inter-procedural data-flow analysis.
+Skip conditions: test-analyzer (no test files in repo), conventions-and-intent (no CLAUDE.md AND no docs/specs), type-design-analyzer (no new types), code-simplifier (POST-review only, only if no critical/high).
 
 Announce triage results before proceeding: PR title, review mode, file counts by risk level, AI-generated files if any, active dimensions. For 1000+ line PRs, add: "This PR is [N] lines. Review effectiveness drops sharply above 400 lines. Consider splitting into smaller PRs."
 
@@ -277,13 +263,15 @@ If a subagent fails (crash, timeout, error):
 ## Phase 4: Validate, Verify & Deduplicate
 
 > **STOP: You MUST execute this pipeline before generating the report.** Do not skip to Phase 5. The validation pipeline is what keeps false positives under 1% — without it, findings are unverified agent output. Read `references/validation-pipeline.md` NOW for the detailed implementation of each step.
+>
+> **This is a deep review tool built for thoroughness, not speed.** The user chose this tool because they want aggressive, high-confidence review. Cost and time concerns do not justify skipping any pipeline step — especially 4f (blind challenge), which requires spawning sub-agents. Every step exists because skipping it produces measurably worse results.
 
 **Pipeline:** 4a → 4b → 4c → 4d → 4e → 4f → 4g → 4h → 4i → 4j
 
-**Announce each step before executing it.** This creates accountability — if you skip a step, the gap is visible in the transcript. Example announcements:
-- "Phase 4a: Classifying findings via git blame..."
-- "Phase 4f: Checking challenge round triggers — 4 critical/high findings → TRIGGERED. Spawning blind challenge agents."
-- "Phase 4f: Checking challenge round triggers — 0 critical/high, no contradictions, no borderline confidence → not triggered."
+**Announce each step individually as you execute it — not as a batch summary after the fact.** Each step gets its own announcement message before you do the work. Do not collapse multiple steps into "Phase 4 complete: [results for all steps]". Example:
+- "Phase 4a: Classifying findings via git blame..." → do 4a → announce results
+- "Phase 4c: Applying threshold filter..." → do 4c → announce results
+- "Phase 4f: Checking challenge round triggers — 4 critical/high findings → TRIGGERED. Spawning blind challenge agents." → spawn agents → announce results
 
 Execute each step in order:
 
@@ -303,18 +291,46 @@ Execute each step in order:
 **4f. Blind challenge round**
 
 > **MANDATORY GATE: Do not proceed to 4g until this step completes.**
-> Check the trigger conditions below. If ANY are true, you MUST spawn blind challenge agents NOW.
 >
-> Deterministic verification (4b) checks whether a finding's FACTUAL claims are correct (right file, right line, symbol exists). Blind challenge (4f) checks whether a finding's INTERPRETATION is correct (is this actually a bug, or is there a defense the original agent missed?). These test different things — passing 4b does not make 4f redundant.
-
-This is the architectural linchpin of the review system. Without blind challenge, multi-agent systems exhibit sycophantic confirmation in 18/20 configurations.
+> **You cannot perform the challenge yourself.** You have already read all the original agents' findings and reasoning — you are not blind. Doing the "disproval" inline in your own reasoning is sycophantic self-review, which is exactly what this step exists to prevent.
 
 Trigger conditions (if ANY are true, you MUST run the challenge round):
 - 1 or more critical/high severity findings remain after filtering
 - Any contradictions were routed from step 4e
 - Any findings have post-verification confidence between 70-85
 
-For each finding that needs challenge, spawn a fresh Sonnet agent with ONLY the finding's title/description and the raw code (never the original agent's reasoning). The challenger attempts to disprove the finding. See `references/validation-pipeline.md` for the full protocol and how to apply results.
+Challenge **every finding** that meets the trigger conditions. Spawn up to 8 challenge agents in parallel in a single message with multiple Agent tool calls. If more than 8 findings need challenge, do a second wave after the first completes. Use Sonnet in Optimized mode, Opus in Frontier mode.
+
+**Exact Agent tool call format — use this template for each finding:**
+
+```
+Agent(
+  description: "Blind challenge: {finding_id}",
+  model: "sonnet",  // or "opus" in Frontier mode
+  prompt: "A code reviewer claims the following about this code:
+
+Title: {finding.title}
+Description: {finding.description}
+
+Here is the raw code:
+{paste the code you read fresh from file:line_start-line_end}
+
+Your job is to attempt to DISPROVE this claim. Look for reasons it might be wrong:
+- Defensive code the reviewer missed
+- Framework guarantees that prevent the issue
+- Type system protections
+- Documented intentional behavior
+
+You MUST return ONLY a JSON object in this exact format, nothing else:
+{\"confidence\": <integer 0-100>, \"justification\": \"<one paragraph explanation>\"}"
+)
+```
+
+Do NOT include the original agent's reasoning or evidence in the prompt — only the title, description, and raw code.
+
+Apply results per `references/validation-pipeline.md`: confidence <50 → downgrade to medium; ≥75 → survives, boost +10; 50-74 → flag as contested.
+
+**Self-verification checkpoint:** Before proceeding to 4g, confirm: did you emit Agent tool_use blocks for the challenge round? If you wrote text reasoning instead of Agent tool calls, stop and spawn the agents now.
 
 **4g. Dedup** — Merge overlapping findings (same file + line range + issue). Keep highest confidence and most specific description.
 
@@ -452,8 +468,8 @@ Walk the user through findings one at a time, grouped by severity (critical firs
 ```
 AskUserQuestion(
   questions: [{
-    question: "🔴 conv-1: Async tests use CancellationToken.None\nFile: ClaudeCoachingLlmTests.cs | 15 async test methods pass CancellationToken.None instead of TestContext.Current.CancellationToken",
-    header: "Critical (1 of 1)",
+    question: "🔴 conv-1: Async tests use CancellationToken.None\nClaudeCoachingLlmTests.cs#L16-L200 | Confidence: 90%",
+    header: "🔴 Critical (1 of 1)",
     multiSelect: false,
     options: [
       { label: "Include" },
@@ -465,7 +481,9 @@ AskUserQuestion(
 )
 ```
 
-**Question format:** The header shows the current severity group and position (e.g., "High (2 of 3)"). The question body includes the severity emoji, finding ID, title, file, and a one-line summary — enough context to decide without scrolling back to the report.
+**Question format:** The header includes the severity emoji and shows group + position (e.g., "🟠 High (2 of 3)"). Emojis: 🔴 critical, 🟠 high, 🟡 medium, 💡 low. The question body has two lines:
+- Line 1: severity emoji, finding ID, and full title (e.g., "🔴 bug-1: stop_reason not checked — truncated LLM responses silently accepted")
+- Line 2: file with line range and confidence percentage (e.g., "ClaudeCoachingLlm.cs#L115-L130 | Confidence: 100%")
 
 **Options:**
 
