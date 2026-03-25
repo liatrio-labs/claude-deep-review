@@ -27,14 +27,17 @@ Use git blame data from Phase 2f to classify each finding:
 
 ## 4b. Deterministic verification BEFORE LLM judgment
 
-For each finding with confidence < 90, spawn a fast **Sonnet** validation subagent that performs a **two-step process**. Pure LLM-on-LLM verification shares correlated errors ~60% of the time, so deterministic grounding is essential.
+Two-step process applied to ALL findings. Pure LLM-on-LLM verification shares correlated errors ~60% of the time — deterministic grounding is essential. Production review systems verify all findings, not selectively.
 
-**Step 1 — Factual verification (deterministic):**
+**Step 1 — Factual verification (deterministic, ALL findings):**
 1. Read the exact lines at `file:line_start-line_end`. Confirm the code matches the finding's description and evidence.
-2. Use Grep/LSP to verify that referenced symbols, callers, or consumers actually exist.
+2. Use LSP (preferred, ~50ms semantic resolution) with fallback to Grep to verify that referenced symbols, callers, or consumers actually exist.
 3. If ANY factual claim is wrong (wrong line number, function doesn't exist, code doesn't match), set confidence to 0 immediately — do not proceed to Step 2.
 
-**Step 2 — LLM judgment (only after Step 1 passes):**
+**Step 2 — LLM judgment (findings with confidence <90 that pass Step 1):**
+
+Findings with confidence ≥90 have already been factually verified in Step 1 and represent cases where the agent "can point to the EXACT input that triggers the bug." These skip the more expensive LLM judgment step. For findings with confidence <90, spawn a validation agent (Sonnet in Optimized mode, Opus in Frontier mode):
+
 1. Read the finding description and evidence
 2. Attempt to **disprove** the finding — look for reasons it might be a false positive
 3. Score using this verbatim confidence rubric:

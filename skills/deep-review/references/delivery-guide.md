@@ -34,7 +34,7 @@ Severity emojis: 🔴 critical, 🟠 high, 🟡 medium, 💡 low.
 
 ### Posting comments — use Python, not shell JSON
 
-Shell-constructed JSON fails because of the double-escaping trap (JSON escaping + bash metacharacters). Research (#16) shows Python `json.dumps()` to temp file → `gh/glab api --input` is the most reliable pattern. **Always use this approach — never construct JSON payloads in bash.**
+Shell-constructed JSON fails because of the double-escaping trap (JSON escaping + bash metacharacters). Python `json.dumps()` to temp file → `gh/glab api --input` is the most reliable pattern. **Always use this approach — never construct JSON payloads in bash.**
 
 Write a Python script using a quoted heredoc (`<< 'PYTHON_EOF'`) to prevent bash from interpreting special characters in the Python code:
 
