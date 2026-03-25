@@ -55,11 +55,17 @@ Example: "This PR adds JWT-based authentication to the API layer. The implementa
 
 ### Verdict
 
-{One of: APPROVE — no blocking issues | APPROVE WITH SUGGESTIONS — non-blocking improvements | REQUEST CHANGES — blocking issues found}
+Determine the verdict using these criteria. Research (#15) shows advisory-first tools sustain adoption while overly blocking tools get disabled within a month. AI approval should never count toward required review thresholds — the verdict signals priority to human reviewers, not a gate.
 
-**Blocking issues:** {N}
-**Non-blocking issues:** {N}
-**Suggestions:** {N}
+- **REQUEST CHANGES** — Any critical findings, OR high-severity security findings. These represent bugs or vulnerabilities that would cause real harm in production. Reserve this verdict for issues a senior engineer would block a merge over.
+- **APPROVE WITH SUGGESTIONS** — High or medium findings exist, but none are critical or security-blocking. The code is functional but has significant improvement opportunities that the author should address.
+- **APPROVE** — Only low-severity findings or no findings. The code is ready to merge.
+
+{One of: APPROVE | APPROVE WITH SUGGESTIONS | REQUEST CHANGES}
+
+**Blocking issues:** {N} (critical + high-security — these trigger REQUEST CHANGES)
+**Action items:** {N} (high + medium — should be addressed but not merge-blocking)
+**Suggestions:** {N} (low)
 
 ---
 
