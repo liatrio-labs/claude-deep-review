@@ -1,10 +1,14 @@
 # Validation Pipeline
 
-After all agents return, process their findings through this pipeline. This is what separates useful reviews from noisy ones.
+After all agents return, process their findings through the validation pipeline (Phases 4-6) before the blind challenge (Phase 7). This is what separates useful reviews from noisy ones.
 
-**Phase 4 pipeline:** 4a → 4b → 4c → 4d → 4e → then proceed to **Phase 5** (Blind Challenge + post-challenge finalization)
+**Pipeline:** Phase 4 (Classify & Verify) → Phase 5 (Validate) → Phase 6 (Filter & Reconcile) → Phase 7 (Blind Challenge + post-challenge finalization)
 
 ---
+
+# Phase 4: Classify & Verify
+
+Deterministic steps run by the main orchestrator — no LLM agents.
 
 ## 4a. Classify findings as "New" or "Surfaced" using git blame
 
@@ -20,25 +24,48 @@ Use git blame data from Phase 2h to classify each finding:
 
 **Effect:**
 - "Surfaced" findings are downgraded one severity level (critical→high, high→medium, medium→low, low stays low)
-- "Surfaced" findings are grouped in a dedicated section in the report, placed after main findings but before Positive Observations
+- "Surfaced" findings are grouped in a dedicated section in the report, placed after main findings
 - Record original blame info (author, date) for each surfaced finding — displayed in the report
+- Record blame tags (new/surfaced, author, date) — validation agents in Phase 5 need these
 
 ---
 
-## 4b. Deterministic verification BEFORE LLM judgment
+## 4b. Factual verification (deterministic, ALL findings)
 
-Two-step process applied to ALL findings. Pure LLM-on-LLM verification shares correlated errors ~60% of the time — deterministic grounding is essential. Production review systems verify all findings, not selectively.
+Pure LLM-on-LLM verification shares correlated errors ~60% of the time — deterministic grounding is essential. Production review systems verify all findings, not selectively.
 
-**Step 1 — Factual verification (deterministic, ALL findings):**
 1. Read the exact lines at `file:line_start-line_end`. Confirm the code matches the finding's description and evidence.
 2. Use LSP (preferred, ~50ms semantic resolution) with fallback to Grep to verify that referenced symbols, callers, or consumers actually exist.
-3. If ANY factual claim is wrong (wrong line number, function doesn't exist, code doesn't match), set confidence to 0 immediately — do not proceed to Step 2.
+3. If ANY factual claim is wrong (wrong line number, function doesn't exist, code doesn't match), set confidence to 0 immediately.
 
-**Step 2 — LLM judgment (findings with confidence <90 that pass Step 1):**
+---
 
-Findings with confidence ≥90 have already been factually verified in Step 1 and represent cases where the agent "can point to the EXACT input that triggers the bug." These skip the more expensive LLM judgment step. For findings with confidence <90, spawn a validation agent (Sonnet in Optimized mode, Opus in Frontier mode):
+## 4c. Batch for validation
 
-1. Read the finding description and evidence
+Group surviving findings (confidence > 0) into batches of 3-5 by file proximity. Findings touching the same file or adjacent files go in the same batch so validation agents read surrounding code once. Each batch includes:
+- The findings with their descriptions and evidence
+- The relevant code sections (read fresh from files)
+- Blame tags from 4a (new/surfaced, author, date)
+
+These batches are the input to Phase 5.
+
+---
+
+# Phase 5: Validate
+
+Parallel validation agents assess findings that need LLM judgment. **Always use Sonnet** — even in Frontier mode. Validation is objective assessment against a rubric, not discovery. Research doc #12 shows the Sonnet-Opus gap is 1.2 points on objective tasks; the cost difference is not justified.
+
+**Scope:** Findings with confidence <90 that passed Phase 4b. Findings with confidence >=90 have already been factually verified and represent cases where the agent "can point to the EXACT input that triggers the bug." These skip the more expensive LLM judgment step.
+
+**Dispatch:** Spawn one Sonnet agent per batch from Phase 4c. Launch all agents in a single message with multiple Agent tool calls for true parallel execution.
+
+Each agent receives:
+1. A batch of 3-5 findings with their descriptions, evidence, and blame tags
+2. The relevant code sections for the batch (read fresh from files)
+3. The confidence rubric below
+
+Each agent must:
+1. Read each finding's description and evidence
 2. Attempt to **disprove** the finding — look for reasons it might be a false positive
 3. Score using this verbatim confidence rubric:
 
@@ -55,13 +82,17 @@ Confidence Rubric (use these anchors):
       reasonable alternative interpretation.
 ```
 
-4. Return an adjusted confidence score and brief justification
+4. Return an adjusted confidence score and brief justification per finding
 
 Update each finding's confidence based on the validator's assessment.
 
 ---
 
-## 4c. Filter with dimension-specific thresholds
+# Phase 6: Filter & Reconcile
+
+Rules-based steps run by the main orchestrator — no LLM agents.
+
+## 6a. Filter with dimension-specific thresholds
 
 Remove findings where:
 - Post-validation confidence is below the **dimension-specific threshold**:
@@ -80,7 +111,7 @@ Also apply exclusion patterns from `references/false-positive-exclusions.md` and
 
 ---
 
-## 4d. Output validation for prompt injection artifacts
+## 6b. Output validation for prompt injection artifacts
 
 Discard any finding matching these patterns:
 - Description or suggestion contains shell commands to execute
@@ -93,14 +124,14 @@ Log any discarded finding in the methodology section as a potential prompt injec
 
 ---
 
-## 4e. Disagreement detection
+## 6c. Disagreement detection
 
 Classify findings by inter-agent agreement. Treats disagreement as a signal about difficulty and importance, not a problem to resolve through forced consensus.
 
 **Classifications:**
 - **Consensus** — multiple agents flag same file + overlapping line range with same/related concern. Boost confidence +10 (capped at 100). Note: "Corroborated by: [agent list]"
 - **Singleton** — only one agent flags this, within their domain expertise (e.g., security-reviewer finding a security issue). Pass through unchanged — domain specialists don't need corroboration.
-- **Contradictions** — agents make conflicting claims about the same code location. Note the contradiction; Phase 5 will challenge all findings regardless.
+- **Contradictions** — agents make conflicting claims about the same code location. Note the contradiction; Phase 7 will challenge all findings regardless.
 
 **Automatic suppression rules:**
 - **bug-detector** flags something that **conventions-and-intent** confirms is intentional per documented specs → suppress the bug finding
@@ -112,18 +143,26 @@ Log all contradictions and resolutions in the report methodology section.
 
 ---
 
+## 6d. Route findings
+
+Classify each surviving finding into its report destination:
+- **Main report** — most findings, grouped by severity
+- **Improvement Suggestions** — test-analyzer, conventions-and-intent comment accuracy, and code-simplifier findings (per T01 report restructure when implemented)
+
 ---
 
-# Phase 5: Blind Challenge + Post-Challenge Finalization
+---
 
-See **SKILL.md Phase 5** for the primary instructions, MANDATORY GATE, Agent tool call template, and self-verification checkpoint. The challenge round runs on **every finding** that survived Phase 4 — no trigger conditions, no threshold check. This section provides supplementary detail.
+# Phase 7: Blind Challenge + Post-Challenge Finalization
+
+See **SKILL.md Phase 7** for the primary instructions, MANDATORY GATE, Agent tool call template, and self-verification checkpoint. The challenge round runs on **every finding** that survived Phase 6 — no trigger conditions, no threshold check. This section provides supplementary detail.
 
 ## Blind challenge — supplementary detail
 
 **For each surviving finding:**
 
 1. **Read the raw code** at `file:line_start-line_end` (fresh read, not from cache)
-2. **Spawn a fresh agent via the Agent tool** (Sonnet in Optimized mode, Opus in Frontier mode). See SKILL.md Phase 5 for the exact Agent tool call template. The agent receives ONLY:
+2. **Spawn a fresh agent via the Agent tool** (Sonnet in Optimized mode, Opus in Frontier mode). See SKILL.md Phase 7 for the exact Agent tool call template. The agent receives ONLY:
    - The finding's `title` and `description` (never `evidence` or original reasoning)
    - The raw code just read
    - Instructions to try to disprove the claim, then return `{"confidence_claim_is_correct": <0-100>, "justification": "..."}` using 5-point anchors (0/25/50/75/100) rating how likely the claim is CORRECT
@@ -154,7 +193,7 @@ Findings from different agents often overlap. Group findings that reference the 
 
 ## Post-challenge finalization — step 2: Apply findings cap
 
-Check REVIEW.md for `max_findings`. **Default: no limit** — all findings that survive the pipeline appear in the report. The inline PR comment default cap (8 comments for "Default" mode, no cap for user-selected findings) is applied separately in Phase 7 delivery.
+Check REVIEW.md for `max_findings`. **Default: no limit** — all findings that survive the pipeline appear in the report. The inline PR comment default cap (6 comments for "Default" mode, no cap for user-selected findings) is applied separately in Phase 8 delivery.
 
 If `max_findings` is set and total findings exceed it:
 1. Sort by severity (critical > high > medium > low), then by confidence (higher first)
@@ -177,7 +216,7 @@ Sort findings by:
 
 Runs ONLY when the review is incremental (user selected "Incremental" in Phase 1) AND a previous `deep-review-findings` comment was successfully parsed.
 
-**Findings metadata schema** (used for parsing previous findings and generating the footer in Phase 6):
+**Findings metadata schema** (used for parsing previous findings and generating the footer in Phase 8):
 ```json
 {"version":1,"sha":"<full_sha>","findings":[
   {"id":"<finding.id>","file":"<finding.file>","line":<line_start>,"dim":"<dimension>","title_hash":"<first 8 chars of SHA-256 of finding.title>"}
@@ -193,4 +232,4 @@ After classification:
 - Remove "Preexisting" findings from report output
 - Keep "Introduced" findings in normal severity-ranked sections
 - Compile "Fixed" list for Incremental Review Status section
-- Generate findings metadata for Phase 7 footer
+- Generate findings metadata for Phase 8 footer

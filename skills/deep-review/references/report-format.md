@@ -18,7 +18,7 @@ https://github.com/{owner}/{repo}/blob/{full_sha}/{path}#L{start}-L{end}
 https://gitlab.com/{group}/{project}/-/blob/{full_sha}/{path}#L{start}-L{end}
 ```
 
-For self-hosted instances, replace the hostname with the one detected from the git remote URL. See SKILL.md Phase 2a for VCS detection and Phase 6 for permalink format details.
+For self-hosted instances, replace the hostname with the one detected from the git remote URL. See SKILL.md Phase 2a for VCS detection and Phase 8 (Stage 0) for permalink format details.
 
 **Rules:**
 - MUST use the full 40-character SHA, never an abbreviated hash. If you only have a ref (branch name, short SHA, `HEAD`), resolve it first: `gh api repos/{owner}/{repo}/commits/{ref} --jq .sha`
@@ -163,7 +163,7 @@ Severity has been downgraded one level from the original classification (see Pha
 | **Disagreement detection** | {N consensus (boosted), M singletons (passed through), K contradictions (routed to challenge), J suppressed} |
 | **Blind challenge round** | {Triggered/Not triggered. If triggered: N findings blind-challenged, M downgraded, K boosted, J contested} |
 | **Failed/skipped agents** | {list or "none"} |
-| **Total review time** | {duration from Phase 1 to Phase 6} |
+| **Total review time** | {duration from Phase 1 to Phase 8} |
 | **Prompt injection** | {N injection artifacts detected and discarded, or "none detected"} |
 ```
 

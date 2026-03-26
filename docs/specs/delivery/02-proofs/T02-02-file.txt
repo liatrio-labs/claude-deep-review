@@ -1,0 +1,27 @@
+Type: file
+Description: Verify cross-references to renamed phases are consistent across all reference files
+Expected: All Phase 4-8 references point to correct phase names
+Timestamp: 2026-03-26T21:30:14Z
+
+=== Checking delivery-guide.md references ===
+3:Implementation details for each delivery method in Phase 8.
+168:...The interactive walkthrough in SKILL.md Phase 8 handles the selection UX...
+
+=== Checking report-format.md references ===
+21:...See SKILL.md Phase 2a for VCS detection and Phase 8 (Stage 0) for permalink format details.
+126:Severity has been downgraded one level from the original classification (see Phase 4a).
+166:| **Total review time** | {duration from Phase 1 to Phase 8} |
+
+=== Checking review-md-spec.md references ===
+122:...PR inline comments have a separate default cap of 6...applied in Phase 8 delivery...
+
+=== Checking fix-task-metadata.md references ===
+85:      "blame_classification": "<new or surfaced from Phase 4a>"
+93-97: cw-execute protocol phases (not deep-review phases) — unchanged, correct
+
+=== Verify key design decisions ===
+Phase 5 always Sonnet: PASS — "Always use Sonnet — even in Frontier mode"
+Phase 5 batch dispatch: PASS — "Spawn one Sonnet agent per batch from Phase 4c"
+Phase 8 merged Report+Deliver: PASS — Stage 0 (Generate), Stage 1 (Deliver), Stage 2 (Task board), Stage 3 (Dismissed)
+
+Status: PASS
