@@ -50,7 +50,7 @@ Key design decisions and which research artifacts support them:
 | Incremental review with report diffing | #11 | Infer's introduced/fixed/preexisting classification; CodeRabbit's hidden PR comment state persistence |
 | Model routing: Sonnet default, Opus for security | #12 | SWE-bench gap compressed to 1.2 points; Anthropic's own plugin is all-Sonnet; complementary vulnerability-class profiles justify multi-model security |
 | Prompt caching for cost optimization | #13 | 70-80% of input tokens cacheable; 60-90% savings; self-hosted at $0.50-$1.50 vs $15-$25 managed |
-| Challenge round: blind challenge on critical/high, contradictions, and contested confidence | #14, #17 | Martingale proof: debate doesn't improve correctness; sycophancy in 18/20 configs; challenge agents must not see original reasoning |
+| Challenge round: blind challenge on every surviving finding, every time | #14, #17 | Martingale proof: debate doesn't improve correctness; sycophancy in 18/20 configs; challenge agents must not see original reasoning; conditional triggers added complexity and inconsistent results |
 | Disagreement as difficulty signal | #14 | Ensemble disagreement correlates with finding importance; route to appropriate resolution mechanism rather than forcing consensus |
 | Inline PR comment cap of 8 (research optimal: 5-6) | #15 | Engagement decays in ~10 days; adoption threshold 75-80% precision; silence is a feature; cap set at 8 to balance coverage with noise |
 | Committable code suggestions in findings | #15 | 60-70% implementation rate vs 36-43% for prose-only; Graphite Agent: 67% of suggestions implemented |

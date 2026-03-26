@@ -100,7 +100,7 @@ Classify findings by inter-agent agreement. Treats disagreement as a signal abou
 **Classifications:**
 - **Consensus** — multiple agents flag same file + overlapping line range with same/related concern. Boost confidence +10 (capped at 100). Note: "Corroborated by: [agent list]"
 - **Singleton** — only one agent flags this, within their domain expertise (e.g., security-reviewer finding a security issue). Pass through unchanged — domain specialists don't need corroboration.
-- **Contradictions** — agents make conflicting claims about the same code location. Route to blind challenge (Phase 5) regardless of blocking threshold.
+- **Contradictions** — agents make conflicting claims about the same code location. Note the contradiction; Phase 5 will challenge all findings regardless.
 
 **Automatic suppression rules:**
 - **bug-detector** flags something that **conventions-and-intent** confirms is intentional per documented specs → suppress the bug finding
@@ -116,11 +116,11 @@ Log all contradictions and resolutions in the report methodology section.
 
 # Phase 5: Blind Challenge + Post-Challenge Finalization
 
-See **SKILL.md Phase 5** for the primary instructions, MANDATORY GATE, Agent tool call template, and self-verification checkpoint. This section provides supplementary detail.
+See **SKILL.md Phase 5** for the primary instructions, MANDATORY GATE, Agent tool call template, and self-verification checkpoint. The challenge round runs on **every finding** that survived Phase 4 — no trigger conditions, no threshold check. This section provides supplementary detail.
 
 ## Blind challenge — supplementary detail
 
-**For each finding that needs challenge:**
+**For each surviving finding:**
 
 1. **Read the raw code** at `file:line_start-line_end` (fresh read, not from cache)
 2. **Spawn a fresh agent via the Agent tool** (Sonnet in Optimized mode, Opus in Frontier mode). See SKILL.md Phase 5 for the exact Agent tool call template. The agent receives ONLY:
