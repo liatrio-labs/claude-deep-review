@@ -103,7 +103,7 @@ Remove findings where:
   - **Security**: threshold **70** (security false negatives are costlier than false positives)
   - **Bug/correctness**: threshold **80**
   - **All other dimensions**: threshold **80**
-- The finding is about a pre-existing issue (not introduced by this diff)
+- The finding is about a pre-existing issue that does not interact with this diff (not a "Surfaced" finding classified in Phase 4a — those survive with downgraded severity into their own report section)
 - A linter, typechecker, or compiler would catch it (these run separately in CI)
 - It's a pedantic nitpick a senior engineer wouldn't flag
 - It's about code the author didn't modify (unless it's a cross-file impact issue)

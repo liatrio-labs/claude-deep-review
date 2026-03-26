@@ -396,14 +396,14 @@ Main orchestrator, rules-based — no LLM agents. Apply filters and route findin
 
 **6c. Disagreement detection** — Boost consensus findings (+10), pass through singletons. Security wins ties. All surviving findings proceed to Phase 7 challenge.
 
-**6d. Route findings** — Classify each surviving finding into its report destination:
-- **Main report** — findings from bug-detector, security-reviewer, cross-file-impact-analyzer, conventions-and-intent (intent and convention checks only), and type-design-analyzer. Grouped by severity and counted in the executive summary.
-- **Improvement Suggestions** — findings from test-analyzer, conventions-and-intent comment accuracy pass (pass 3), and code-simplifier. These do NOT count toward the finding totals in the executive summary and are NOT posted as PR inline comments in the default flow. They appear in the Improvement Suggestions section of the report and are available via the "Let me pick" walkthrough if the user wants to include them.
-- **Dedup rule:** If a test-analyzer finding overlaps with another agent's finding at the same file and line range, the non-test-analyzer finding wins and stays in the main report. The test-analyzer finding is dropped to avoid duplication.
+**6d. Tag findings for routing** — Classify each surviving finding by its eventual report destination. This is a tagging step only — the actual separation into report sections happens during post-challenge finalization (Phase 7).
+- **Tag: main report** — findings from bug-detector, security-reviewer, cross-file-impact-analyzer, conventions-and-intent (intent and convention checks only), and type-design-analyzer.
+- **Tag: improvement suggestion** — findings from test-analyzer, conventions-and-intent comment accuracy pass (pass 3), and code-simplifier.
+- **Dedup rule:** If a test-analyzer finding overlaps with another agent's finding at the same file and line range, the non-test-analyzer finding wins — retag the finding as main report and drop the test-analyzer duplicate.
 
-**code-simplifier timing:** After steps 6a-6d complete, check whether any critical/high findings survived. If none did, dispatch code-simplifier now — this is the point where we know it is safe to run it. Its findings route to Improvement Suggestions (per 6d above) and still go through Phase 7 challenge along with all other surviving findings.
+All tagged findings proceed to Phase 7 challenge regardless of their tag. Tagging does not exempt a finding from the blind challenge.
 
-**Important:** Routing to Improvement Suggestions happens AFTER Phase 7. All findings that survive 6a-6c proceed to Phase 7 challenge regardless of their eventual report destination. Routing to Improvement Suggestions does not exempt a finding from the blind challenge.
+**code-simplifier timing:** After steps 6a-6d complete, check whether any critical/high findings survived. If none did, dispatch code-simplifier now. Its findings must go through Phase 4 (blame classification + factual verification) before joining the Phase 7 challenge. Tag them as "improvement suggestion."
 
 Read `references/validation-pipeline.md` for the detailed implementation of each filter step.
 
@@ -467,9 +467,10 @@ Apply results based on `confidence_claim_is_correct`:
 After challenge results are applied:
 
 1. **Dedup** — Merge overlapping findings (same file + line range + issue). Keep highest confidence and most specific description.
-2. **Cap** — Apply REVIEW.md `max_findings` if configured (default: no limit).
-3. **Rank** — Sort by severity → confidence → file risk level.
-4. **Incremental diff** — (Incremental reviews only) Classify vs previous findings as introduced/fixed/preexisting. Suppress preexisting.
+2. **Route** — Materialize the routing tags from Phase 6d. Separate findings into main report (grouped by severity, counted in executive summary) and Improvement Suggestions (not counted, not posted as PR inline comments by default, available via "Let me pick" walkthrough).
+3. **Cap** — Apply REVIEW.md `max_findings` if configured (default: no limit). Applies to main report findings only.
+4. **Rank** — Sort by severity → confidence → file risk level.
+5. **Incremental diff** — (Incremental reviews only) Classify vs previous findings as introduced/fixed/preexisting. Suppress preexisting.
 
 ---
 
