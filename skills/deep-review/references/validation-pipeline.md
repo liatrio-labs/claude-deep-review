@@ -151,7 +151,8 @@ Log all contradictions and resolutions in the report methodology section.
 
 Classify each surviving finding into its report destination:
 - **Main report** — most findings, grouped by severity
-- **Improvement Suggestions** — test-analyzer, conventions-and-intent comment accuracy, and code-simplifier findings (per T01 report restructure when implemented)
+- **Improvement Suggestions** — test-analyzer, conventions-and-intent comment accuracy, and code-simplifier findings
+- **Dedup rule:** If a test-analyzer finding overlaps with another agent's finding at the same file and line range, the non-test-analyzer finding wins and stays in the main report.
 
 ---
 

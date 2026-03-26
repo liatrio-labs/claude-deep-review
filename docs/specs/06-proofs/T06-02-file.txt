@@ -1,0 +1,26 @@
+Type: file
+Description: Verify conditional language removed from report-format.md line 170 "Blind challenge round" row
+File: skills/deep-review/references/report-format.md
+Expected: Line 170 should replace "Triggered/Not triggered. If triggered:" with just the metrics "{N findings blind-challenged, M downgraded, K boosted, J contested}" since blind challenge always runs
+Timestamp: 2026-03-26T00:00:00Z
+
+PROOF OUTPUT:
+=============
+
+| Aspect | Details |
+|--------|---------|
+| **Agents dispatched** | {list each agent with completion status: completed/failed/skipped} |
+| **Model tier** | {mode: Optimized/Frontier — list which agents used which model} |
+| **Findings pipeline** | {N raw findings → M after deterministic verification → K after confidence filter → J after dedup} |
+| **Disagreement detection** | {N consensus (boosted), M singletons (passed through), K contradictions (routed to challenge), J suppressed} |
+| **Blind challenge round** | {N findings blind-challenged, M downgraded, K boosted, J contested} |
+| **Failed/skipped agents** | {list or "none"} |
+| **Total review time** | {duration from Phase 1 to Phase 8} |
+| **Prompt injection** | {N injection artifacts detected and discarded, or "none detected"} |
+
+Status: PASS
+Verification:
+  ✓ Conditional language "Triggered/Not triggered. If triggered:" removed
+  ✓ Line now unconditionally shows metrics: "{N findings blind-challenged, M downgraded, K boosted, J contested}"
+  ✓ Aligns with SKILL.md Phase 7 which states "Challenge **every finding** that survived Phase 6"
+  ✓ No other changes to surrounding content
