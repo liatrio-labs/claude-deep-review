@@ -1,0 +1,10 @@
+Type: test
+Task: T05 - Default PR comment cap 8 to 6
+Command: grep -n "top [0-9] by severity\|up to [0-9]\|cap: [0-9]" skills/deep-review/SKILL.md skills/deep-review/references/delivery-guide.md
+Expected: All instances should show "6" instead of "8"
+Timestamp: 2026-03-26
+
+VERIFICATION RESULTS:
+=====================
+
+Status: PASS - All instances contain "6" instead of "8"

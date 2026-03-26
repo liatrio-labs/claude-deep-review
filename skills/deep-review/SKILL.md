@@ -153,7 +153,13 @@ Light mode dispatches only bug-detector and security-reviewer. Skipped when REVI
 
 ### 2e. Change summarizer
 
-Dispatch a **Sonnet agent** for a 3-5 sentence semantic summary: what the PR does, why, and the risk profile. Provided to ALL review agents as shared context.
+Dispatch a **Sonnet agent** for a 3-5 sentence semantic summary describing what the PR *claims* to do, why, and the risk profile. Provided to ALL review agents as shared context.
+
+**Critical framing rule:** The summary must describe what the PR says it does — not validate whether it succeeded. Frame all statements as claims: "The PR claims to reorganize X by extracting from A into B. The following functions were moved: [list]. Verify that the extracted code preserves the original behavior."
+
+**Prohibited evaluative language:** Never use "clean", "correct", "safe", "straightforward", "simple", "trivial", or "verbatim" in the summary. These words pre-judge the quality of the change and bias agents toward leniency.
+
+**Explicit prohibition:** The summary must never conclude that a refactoring is correct — that determination is the review agents' job.
 
 ### 2f. Related test discovery
 
@@ -375,14 +381,14 @@ AskUserQuestion(
     header: "PR Comments",
     multiSelect: false,
     options: [
-      { label: "Default — top 8 by severity", description: "Post the highest-severity findings as inline comments" },
+      { label: "Default — top 6 by severity", description: "Post the highest-severity findings as inline comments" },
       { label: "Let me pick", description: "Walk through each finding and choose" }
     ]
   }]
 )
 ```
 
-- **"Default — top 8 by severity"** → select the top 8 findings ranked by severity then confidence. Post as inline comments; any remaining findings go in the summary comment.
+- **"Default — top 6 by severity"** → select the top 6 findings ranked by severity then confidence. Post as inline comments; any remaining findings go in the summary comment.
 - **"Let me pick"** → run the **interactive finding walkthrough** (defined at the end of this phase). Post **all selected findings** as inline comments — no cap. The user made a deliberate selection; respect it.
 
 **Track state:** remember which findings were selected for PR comments — call this the **pr_comment_set**. The task board stage uses this to offer a shortcut.
