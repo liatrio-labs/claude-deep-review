@@ -36,19 +36,19 @@ Severity emojis: 🔴 critical, 🟠 high, 🟡 medium, 💡 low.
 
 Shell-constructed JSON fails because of the double-escaping trap (JSON escaping + bash metacharacters). Python `json.dumps()` to temp file → `gh/glab api --input` is the most reliable pattern. **Always use this approach — never construct JSON payloads in bash.**
 
-Write a Python script to a temp file and execute it. Do NOT use heredocs (`<< 'EOF'`) — they cause escaping issues where `!=` becomes `\!=` (invalid Python). Instead, use the Write tool to create the script file, then run it with Bash:
+**Use the Write tool to create the script file, then run it with Bash.** Do NOT use heredocs (`python3 << 'EOF'`) or inline Python via `Bash(python3 -c ...)` — both cause shell escaping issues where `!=` becomes `\!=` (invalid Python syntax). The Write tool outputs the script verbatim with no shell interpretation.
 
 ```
-Write the script to $TMPDIR/post_review.py, then:
-python3 $TMPDIR/post_review.py
+Step 1: Write(file_path="$TMPDIR/post_review.py", content=<the script>)
+Step 2: Bash("python3 $TMPDIR/post_review.py")
 ```
 
-Reference implementation below (adapt, don't paste into a heredoc):
+Reference implementations below — use Write to create these as files, never paste them into heredocs or shell strings:
 
 #### GitHub — batched PR review
 
-```bash
-python3 << 'PYTHON_EOF'
+```python
+# Write this to $TMPDIR/post_review.py via the Write tool
 import json, subprocess, tempfile, os, sys
 
 owner = "{owner}"
@@ -87,15 +87,14 @@ try:
     print(f"Review posted: {resp.get('html_url', resp.get('id'))}")
 finally:
     os.unlink(tmp)
-PYTHON_EOF
 ```
 
 #### GitLab — inline MR discussions
 
 GitLab requires separate API calls per inline comment (no batched review endpoint). Each needs position SHAs from the MR versions endpoint:
 
-```bash
-python3 << 'PYTHON_EOF'
+```python
+# Write this to $TMPDIR/post_review.py via the Write tool
 import json, subprocess, tempfile, os, sys
 
 project_id = "{project_id}"  # or URL-encoded path
@@ -148,7 +147,6 @@ for c in comments:
         os.unlink(tmp)
 
 print(f"Posted {len(comments)} inline comments on MR !{mr_iid}")
-PYTHON_EOF
 ```
 
 After inline comments, post the executive summary as a top-level PR/MR comment using the same Python pattern.

@@ -50,7 +50,7 @@ Before any review work, check PR eligibility. Use Haiku for these fast checks.
 
 ### Review mode selection — MANDATORY GATE
 
-> **STOP: Complete this step before Phase 2.** Do not skip or assume a default.
+> **STOP: Complete this step before Phase 2.** Do not skip or assume a default — this includes preferences remembered from prior sessions or memory. Preferences change between reviews; asking takes 5 seconds, a wrong assumption wastes the entire review. If you have a remembered preference, pre-select it as "(Recommended based on last session)" but still ask.
 
 1. **Quick-check root REVIEW.md** for an explicitly set `model_tier` value (not a comment or example). If found, use it and note: "Review mode: [mode] (from REVIEW.md)"
 2. **If no `model_tier` set**, prompt the user:
@@ -68,7 +68,7 @@ Confirm the selected mode in output before continuing.
 
 ### Delivery preference — MANDATORY GATE
 
-> **STOP: Complete this step before Phase 2.** Do not skip or assume a default.
+> **STOP: Complete this step before Phase 2.** Do not skip or assume a default — this includes preferences remembered from prior sessions or memory. Preferences change between reviews; asking takes 5 seconds, a wrong assumption wastes the entire review. If you have a remembered preference, pre-select it as "(Recommended based on last session)" but still ask.
 
 1. **Quick-check root REVIEW.md** for an explicitly set `default_delivery` value (e.g., `default_delivery: chat,pr_comments`). If found, use it and note: "Delivery: [methods] (from REVIEW.md)"
 2. **If no `default_delivery` set**, prompt the user:
