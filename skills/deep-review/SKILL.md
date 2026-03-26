@@ -287,6 +287,24 @@ All agents can still **pull** additional context — scoping controls what is pr
 6. **type-design-analyzer** — Type encapsulation, invariant expression. Only if new types introduced. Read `agents/type-design-analyzer.md`.
 7. **code-simplifier** — Simplification opportunities, dead code. POST-review only, only if no critical/high issues. Read `agents/code-simplifier.md`.
 
+### Agent tool call template
+
+Dispatch all applicable agents in a **single message** with multiple Agent tool calls. Use this template for each agent — fill in the agent-specific content from the agent's `.md` file and `references/agent-prompt-template.md`:
+
+```
+Agent(
+  model: "sonnet",  // or "opus" in Frontier mode; security-reviewer is always Opus
+  description: "Review: {dimension}",
+  prompt: "{full agent prompt built from references/agent-prompt-template.md —
+            static content (agent instructions, false-positive exclusions, calibration rubric, JSON schema, project context)
+            then dynamic content (change summary, risk classification, scoped diff wrapped in <untrusted-code-content> tags)}"
+)
+```
+
+Repeat for each applicable agent. Security-reviewer always uses `model: "opus"` regardless of review mode. Read `references/agent-prompt-template.md` for the full prompt structure.
+
+**Self-verification checkpoint:** Before proceeding to Phase 4, confirm: did you emit Agent tool_use blocks for ALL applicable review agents? If you wrote analysis text instead of Agent tool calls, stop and spawn the agents now.
+
 ### Agent failure handling
 
 If a subagent fails (crash, timeout, error): continue with completed agents, log the failure in Review Methodology, warn the user if the failed agent covered security or bugs, and never silently skip a failed agent.
