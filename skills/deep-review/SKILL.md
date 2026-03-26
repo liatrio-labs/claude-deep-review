@@ -161,6 +161,30 @@ Dispatch a **Sonnet agent** for a 3-5 sentence semantic summary describing what 
 
 **Explicit prohibition:** The summary must never conclude that a refactoring is correct — that determination is the review agents' job.
 
+**Agent tool call template:**
+
+```
+Agent(
+  model: "sonnet",
+  description: "Change summarizer",
+  prompt: "Produce a 3-5 sentence semantic summary of the following PR diff.
+
+Diff:
+{paste full diff here}
+
+PR title: {title}
+PR description: {body}
+
+Rules:
+- Describe what the PR *claims* to do, why, and the risk profile — do not evaluate whether it succeeded.
+- Frame all statements as claims: 'The PR claims to reorganize X by extracting from A into B.'
+- Never use: clean, correct, safe, straightforward, simple, trivial, verbatim.
+- Never conclude that a refactoring is correct.
+
+Return only the summary text, no headings."
+)
+```
+
 ### 2f. Related test discovery
 
 For each changed production file, find test files by convention (`Tests`, `.test`, `.spec`, `_test`, `_spec` patterns; `tests/`, `__tests__/`, `spec/` directories). Include in context for bug-detector and test-analyzer.
@@ -184,7 +208,24 @@ Distribute to agents:
 
 ### 2i. File-level summarization (PRs > 500 lines)
 
-Dispatch parallel **Sonnet agents** (one per file) for 2-3 sentence summaries. Concatenate into a summary-of-summaries for architectural awareness. Provide to all review agents.
+Dispatch parallel **Sonnet agents** (one per file) for 2-3 sentence summaries. Launch all file summarizers **in a single message with multiple Agent tool calls** for true parallel execution. Concatenate into a summary-of-summaries for architectural awareness. Provide to all review agents.
+
+**Agent tool call template (repeat for each changed file):**
+
+```
+Agent(
+  model: "sonnet",
+  description: "Summarize {filename}",
+  prompt: "Produce a 2-3 sentence summary of what changed in this file and why.
+
+File: {filename}
+Diff:
+{file-scoped diff}
+
+Frame all statements as claims (what the diff says happened, not whether it is correct).
+Return only the summary text."
+)
+```
 
 ### 2j. AI-generated code detection
 
@@ -226,6 +267,8 @@ Read `references/agent-prompt-template.md` for the full prompt template, includi
 - **cross-file-impact-analyzer**: **all files** + must search the entire codebase for callers/implementors/consumers of changed public symbols
 - **test-analyzer**: changed production files + test files (2f)
 - **conventions-and-intent**: **all files** (needs full scope for convention and intent checking)
+- **type-design-analyzer**: files with new type definitions (only dispatched when new types are introduced)
+- **code-simplifier**: **all changed files** (same scope as conventions-and-intent; dispatched after Phase 6 filtering — see Phase 6 note below)
 
 All agents can still **pull** additional context — scoping controls what is pre-loaded, not what is accessible.
 
@@ -286,6 +329,41 @@ Each agent must:
 4. Score using the confidence rubric (0/25/50/75/100 anchors) from `references/validation-pipeline.md`
 5. Return an adjusted confidence score and brief justification per finding
 
+**Exact Agent tool call format — use this template for each batch:**
+
+```
+Agent(
+  model: "sonnet",
+  description: "Validate batch {N}",
+  prompt: "You are validating a batch of review findings. For each finding, attempt to DISPROVE it — look for reasons it might be a false positive.
+
+Findings:
+{paste 3-5 findings with descriptions, evidence, and blame tags (new/surfaced, author, date)}
+
+Relevant code sections:
+{paste the code read fresh from file:line_start-line_end for each finding}
+
+For each finding:
+1. Read its description and evidence carefully.
+2. Look for defensive code, framework guarantees, type protections, or documented intentional behavior that would make the finding wrong.
+3. Ask: can you find a code path that actually triggers this today? If it is only reachable under hypothetical future changes (a new caller, a changed config, a new code path), cap your confidence at 70.
+4. Score using this rubric (use only these anchors):
+   - 0  = definitely a false positive — clear evidence the issue does not exist
+   - 25 = probably false positive — code likely handles this correctly
+   - 50 = uncertain — could go either way
+   - 75 = probably real — no meaningful counter-evidence found
+   - 100 = definitely real — issue is clearly present with no mitigating factors
+
+You MUST return ONLY a JSON array in this exact format, nothing else:
+[
+  {\"finding_id\": \"<id>\", \"confidence\": <integer 0-100>, \"justification\": \"<one sentence>\"},
+  ...
+]"
+)
+```
+
+**Self-verification checkpoint:** Before proceeding to Phase 6, confirm: did you emit Agent tool_use blocks for the validation round? If you wrote text reasoning instead of Agent tool calls, stop and spawn the agents now.
+
 Update each finding's confidence based on the validator's assessment.
 
 ---
@@ -304,6 +382,10 @@ Main orchestrator, rules-based — no LLM agents. Apply filters and route findin
 - **Main report** — findings from bug-detector, security-reviewer, cross-file-impact-analyzer, conventions-and-intent (intent and convention checks only), and type-design-analyzer. Grouped by severity and counted in the executive summary.
 - **Improvement Suggestions** — findings from test-analyzer, conventions-and-intent comment accuracy pass (pass 3), and code-simplifier. These do NOT count toward the finding totals in the executive summary and are NOT posted as PR inline comments in the default flow. They appear in the Improvement Suggestions section of the report and are available via the "Let me pick" walkthrough if the user wants to include them.
 - **Dedup rule:** If a test-analyzer finding overlaps with another agent's finding at the same file and line range, the non-test-analyzer finding wins and stays in the main report. The test-analyzer finding is dropped to avoid duplication.
+
+**code-simplifier timing:** After steps 6a-6d complete, check whether any critical/high findings survived. If none did, dispatch code-simplifier now — this is the point where we know it is safe to run it. Its findings route to Improvement Suggestions (per 6d above) and still go through Phase 7 challenge along with all other surviving findings.
+
+**Important:** Routing to Improvement Suggestions happens AFTER Phase 7. All findings that survive 6a-6c proceed to Phase 7 challenge regardless of their eventual report destination. Routing to Improvement Suggestions does not exempt a finding from the blind challenge.
 
 Read `references/validation-pipeline.md` for the detailed implementation of each filter step.
 
