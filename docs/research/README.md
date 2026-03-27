@@ -23,6 +23,7 @@ Research artifacts that informed the design of claude-deep-review. Each document
 | 15 | [Developer Experience of Review Output](artifacts/15-developer-experience-of-review-output.md) | Engagement decays in ~10 days without tuning. Optimal volume: 5-6 comments per PR. Committable code suggestions see 60-70% implementation rates vs 36-43% for prose. Trust in AI accuracy at 29% (Stack Overflow 2025). Adoption threshold is 75-80% precision. Batch findings into single review events. Silence is a feature — post nothing on 29% of reviews. |
 | 16 | [Reliable API Payload Patterns](artifacts/16-reliable-api-payload-patterns.md) | Why shell-constructed JSON fails for AI agents (double-escaping trap). Python `json.dumps()` to temp file → `gh api --input` is the most reliable pattern. Covers GitHub batched PR reviews, GitLab MR discussions with position data, universal Python helper, `jq --arg` as shell-native alternative. `-f`/`-F` flags cannot construct `comments` arrays. |
 | 17 | [Enforcing Mandatory Pipeline Steps](artifacts/17-enforcing-mandatory-pipeline-steps.md) | Why LLM orchestrators consistently skip expensive-but-mandatory pipeline steps despite explicit instructions. Documents the "acknowledge-then-skip" anti-pattern (sycophantic acknowledgment + cost rationalization). Four-layer enforcement hierarchy: code-controlled dispatch > API-level forced tool calls > post-call verification > prompt hardening. Production frameworks (LangGraph, AutoGen, StateFlow) all enforce mandatory steps through code, not prompts. Layer 4 techniques: few-shot tool call templates (3.25x improvement), self-verification checkpoints, instruction positioning (U-shaped attention curve), cost framing. Anthropic's own guidance: mandatory steps are workflows, not agent decisions. |
+| 18 | [Skill Architecture, Limits, and Progressive Disclosure](artifacts/18-skill-architecture-limits-and-progressive-disclosure.md) | The 500-line SKILL.md limit is a soft guideline, not a hard cap — but the real constraints are a 2% context-window metadata budget, linear attention degradation (Claude Sonnet loses compliance from the first instruction), and context competition. Reasoning degrades at ~3,000 tokens of input regardless of content. Optimal architecture: 150-300 line SKILL.md with core workflow + pointers to reference files loaded on demand. The unit of skill complexity is the directory, not the file. Documents superpowers plugin (655-line SKILL.md, 7+ reference files) and Anthropic's code review plugin (zero reference files, complexity via agent orchestration). U-shaped attention curve: place critical rules at beginning and end of SKILL.md. |
 
 ## How these informed the design
 
@@ -64,11 +65,14 @@ Key design decisions and which research artifacts support them:
 | Challenge round: every qualifying finding, all parallel (cap 50) | #17 | Parallel spawn in single message reduces perceived friction; one agent per finding, all dispatched at once |
 | Cost framing: thoroughness over speed | #17 | Models implicitly optimize for lower-friction outputs; explicit framing that cost concerns don't override execution counteracts effort-minimization behavior |
 | Future: code-controlled challenge dispatch | #14, #17 | Anthropic's own guidance: mandatory steps are workflows, not agent decisions; StateFlow achieved 13-28% higher success rates with FSM-controlled transitions; McKinsey two-layer model eliminated step-skipping entirely |
+| Progressive disclosure: 216-line SKILL.md + 11 reference files | #18 | Instruction compliance degrades linearly; reasoning drops at ~3,000 tokens; system prompt consumes 25-33% of instruction budget. SKILL.md is the orchestration skeleton; reference files loaded on demand per phase |
+| U-shaped attention: critical rules at beginning and end of SKILL.md | #18 | LLMs perform best when critical information sits at beginning or end of input; middle section degrades. Precision principle and security boundary at top; Critical Rules reinforcement at bottom |
+| Phase-specific reference files (phase1-preflight, phase2-triage, phase3-dispatch, phase8-delivery) | #18 | The unit of skill complexity is the directory, not the file. Each phase loads only its reference when active, reducing per-phase context cost |
 
 ## Adding new research
 
 When adding new research artifacts:
-1. Number sequentially (next: `18-`)
+1. Number sequentially (next: `19-`)
 2. Use lowercase-kebab-case for filenames
 3. Place in the `artifacts/` directory
 4. Update this index with a summary row and any new design decision mappings

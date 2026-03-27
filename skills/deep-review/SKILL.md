@@ -6,7 +6,7 @@ description: |
 
 # Deep Review
 
-Concern-parallel agents with context-pulling and deterministic verification. When in doubt about whether something is a real issue, err on the side of not reporting it. A review with 5 real issues is far more valuable than one with 5 real issues buried in 20 false positives.
+Concern-parallel agents with context-pulling and deterministic verification. When in doubt about whether something is a real issue, error on the side of not reporting it. A review with 5 real issues is far more valuable than one with 5 real issues buried in 20 false positives.
 
 **This is a deep review tool built for thoroughness, not speed.** The user chose this tool because they want aggressive, high-confidence review. Cost and time concerns do not justify skipping any phase — especially Phase 7 (blind challenge), which requires spawning sub-agents. Every phase exists because skipping it produces measurably worse results.
 
@@ -39,7 +39,7 @@ Check REVIEW.md for `default_delivery`; if not set, ask Chat / PR comments / Mar
 
 ## Phase 2: Target & Triage
 
-Identify the review target and gather all context needed for agent dispatch. Fast pass in the main context (not a subagent), under a minute. Read `references/phase2-triage.md` for all 11 sub-steps (2a–2k), Agent templates, and detection logic.
+Identify the review target and gather all context needed for agent dispatch. Fast pass in the main context (not a subagent). Read `references/phase2-triage.md` for all 11 sub-steps (2a–2k), Agent templates, and detection logic.
 
 ### REVIEW.md detection — MANDATORY GATE
 
