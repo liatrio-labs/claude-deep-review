@@ -1,0 +1,21 @@
+Type: file
+Command: grep -n "questions:" skills/deep-review/references/review-md-spec.md
+Expected: 2 occurrences of "questions:" (full structured syntax) in review-md-spec.md
+Timestamp: 2026-03-26T00:00:00Z
+
+--- OUTPUT ---
+222:    questions: [{
+237:    questions: [{
+
+--- VERIFICATION ---
+Both AskUserQuestion calls in review-md-spec.md now use full structured syntax:
+  - Line 222: No REVIEW.md anywhere prompt (matched phase2-triage.md lines 41-52)
+  - Line 237: Subdirectory REVIEW.md prompt (matched phase2-triage.md lines 57-68)
+
+Options now use {label, description} objects instead of bare strings.
+Headers are: "REVIEW.md Setup" and "Subdirectory REVIEW.md".
+multiSelect: false set on both.
+
+The syntax now matches the canonical versions already in references/phase2-triage.md.
+
+Status: PASS

@@ -219,22 +219,30 @@ Find all CLAUDE.md locations, check each for a matching REVIEW.md:
 - **No REVIEW.md anywhere:**
   ```
   AskUserQuestion(
-    question: "No REVIEW.md found. REVIEW.md lets you customize review behavior — confidence thresholds, ignore patterns, project-specific rules. Would you like to create one?",
-    options: [
-      "Yes — create at repo root",
-      "Not now — continue without it"
-    ]
+    questions: [{
+      question: "No REVIEW.md found. REVIEW.md lets you customize review behavior — confidence thresholds, ignore patterns, project-specific rules. Would you like to create one?",
+      header: "REVIEW.md Setup",
+      multiSelect: false,
+      options: [
+        { label: "Yes — create at repo root", description: "Scaffold a REVIEW.md with sensible defaults" },
+        { label: "Not now — continue without it", description: "Use default settings for this review" }
+      ]
+    }]
   )
   ```
   If yes, use the scaffolding template from the Templates section below.
 - **Root exists, subdirectory CLAUDE.md without matching REVIEW.md:**
   ```
   AskUserQuestion(
-    question: "Found REVIEW.md at repo root, but {directory} has a CLAUDE.md without a matching REVIEW.md. A subdirectory REVIEW.md lets you set different review standards for this area. Create one?",
-    options: [
-      "Yes — create it (inherits root settings, adds directory-specific rules)",
-      "Not now — root config applies to all directories"
-    ]
+    questions: [{
+      question: "Found REVIEW.md at repo root, but {directory} has a CLAUDE.md without a matching REVIEW.md. A subdirectory REVIEW.md lets you set different review standards for this area. Create one?",
+      header: "Subdirectory REVIEW.md",
+      multiSelect: false,
+      options: [
+        { label: "Yes — create it", description: "Inherits root settings, adds directory-specific rules" },
+        { label: "Not now — root config applies", description: "Use root REVIEW.md settings for all directories" }
+      ]
+    }]
   )
   ```
 - **All locations covered** → proceed

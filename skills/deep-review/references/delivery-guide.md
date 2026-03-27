@@ -197,11 +197,15 @@ After delivery, ask if findings should be suppressed in future reviews:
 
 ```
 AskUserQuestion(
-  question: "Should any of these findings be ignored in future reviews? This adds them to REVIEW.md so they won't be flagged again.",
-  options: [
-    "Yes — let me pick which ones to dismiss",
-    "No — all findings are valid"
-  ]
+  questions: [{
+    question: "Should any of these findings be ignored in future reviews? This adds them to REVIEW.md so they won't be flagged again.",
+    header: "Dismissed Findings",
+    multiSelect: false,
+    options: [
+      { label: "Yes — let me pick which ones to dismiss", description: "Choose specific findings to suppress in future reviews" },
+      { label: "No — all findings are valid", description: "Keep all findings active for future reviews" }
+    ]
+  }]
 )
 ```
 
@@ -222,11 +226,15 @@ Each entry: dimension, pattern matching finding title, parenthesized reason with
 
 ```
 AskUserQuestion(
-  question: "Add these to REVIEW.md?",
-  options: [
-    "Yes — add to REVIEW.md",
-    "No — skip"
-  ]
+  questions: [{
+    question: "Add these to REVIEW.md?",
+    header: "Save to REVIEW.md",
+    multiSelect: false,
+    options: [
+      { label: "Yes — add to REVIEW.md", description: "Write the dismissed findings to REVIEW.md now" },
+      { label: "No — skip", description: "Discard the dismissals; findings remain active" }
+    ]
+  }]
 )
 ```
 
