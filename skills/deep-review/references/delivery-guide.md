@@ -65,7 +65,7 @@ payload = {
             "side": "RIGHT",
             "body": "{comment body with emoji, markdown, code blocks}",
         },
-        # ... up to 6 inline comments (cap)
+        # ... up to 6 inline comments for Default mode; no cap for "Let me pick"
     ],
 }
 

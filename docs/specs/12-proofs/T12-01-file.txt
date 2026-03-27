@@ -1,0 +1,27 @@
+Type: file
+Check: phase8-delivery.md exists with all required sections
+Timestamp: 2026-03-26T00:00:00Z
+
+Command: ls -la skills/deep-review/references/phase8-delivery.md && wc -l skills/deep-review/references/phase8-delivery.md
+
+Expected: File exists, ~120 lines
+
+Result:
+  skills/deep-review/references/phase8-delivery.md — 129 lines
+
+Sections present:
+  - Stage 0: Generate Report (Internal) [YES]
+  - Stage 1: Deliver the Report [YES]
+  - Stage 2: Task Board — MANDATORY GATE [YES]
+  - Stage 3: Dismissed Findings [YES]
+  - Interactive Finding Walkthrough [YES]
+
+AskUserQuestion templates present: 5
+  - Stage 1 Step B PR comment selection
+  - Stage 2 with pr_comment_set (3-option variant)
+  - Stage 2 without pr_comment_set (2-option variant)
+  - Interactive walkthrough per-finding template
+
+pr_comment_set references: 3 (tracking logic preserved)
+
+Status: PASS

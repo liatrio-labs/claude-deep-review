@@ -1,0 +1,29 @@
+Type: file
+Check: SKILL.md Phase 8 compressed to target ~20 lines with required inline content
+Timestamp: 2026-03-26T00:00:00Z
+
+Command: wc -l skills/deep-review/SKILL.md && grep -n "## Phase 8" skills/deep-review/SKILL.md
+
+Expected: SKILL.md total ~206 lines, Phase 8 section ~15-20 lines with MANDATORY GATE labels and references
+
+Result:
+  skills/deep-review/SKILL.md — 206 lines total
+  Phase 8 starts at line 192, ends at line 206 = 15 lines
+
+Required inline content verified:
+  - "Four stages" summary line [YES]
+  - "Re-check eligibility" note [YES]
+  - MANDATORY GATE for PR comments [YES]
+  - MANDATORY GATE for task board [YES]
+  - Reference to references/phase8-delivery.md [YES]
+  - Reference to references/report-format.md [YES]
+  - Reference to references/delivery-guide.md [YES]
+
+Content NOT in SKILL.md (correctly moved to reference):
+  - Permalink format details [moved to phase8-delivery.md]
+  - AskUserQuestion templates [moved to phase8-delivery.md]
+  - Interactive walkthrough [moved to phase8-delivery.md]
+  - pr_comment_set tracking logic [moved to phase8-delivery.md]
+  - Improvement Suggestions exclusion rules [moved to phase8-delivery.md]
+
+Status: PASS
