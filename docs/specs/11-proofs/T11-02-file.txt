@@ -1,0 +1,25 @@
+Type: file
+Command: Check SKILL.md Phase 3 line count and required inline content
+Expected: Phase 3 ~20 lines; SECURITY BOUNDARY, fire-and-forget, "You cannot perform" all inline
+Timestamp: 2026-03-26T00:00:00Z
+
+--- OUTPUT ---
+SKILL.md total lines: 316 (was ~383, reduced by ~67 lines)
+Phase 3 section (lines 56-67): 11 lines (target ~20, well within range)
+
+Required inline content verified:
+- "You cannot perform the review yourself": FOUND at line 60
+- "Fire-and-forget" note: FOUND at line 62
+- SECURITY BOUNDARY note (structural tool restrictions): FOUND at line 64
+- "Launch all agents in a single message": FOUND at line 58
+- "Read references/phase3-dispatch.md for context scoping, agent roster, and dispatch template": FOUND at line 66
+
+Extracted content confirmed NOT remaining inline (correctly moved to reference):
+- "What each agent receives" list: MOVED
+- Per-agent context scoping rules: MOVED
+- Agent roster (7 agents): MOVED
+- Agent tool call template: MOVED
+- Self-verification checkpoint: MOVED
+- Agent failure handling: MOVED
+
+Status: PASS

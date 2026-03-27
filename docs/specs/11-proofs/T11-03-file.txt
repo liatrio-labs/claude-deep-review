@@ -1,0 +1,20 @@
+Type: file
+Command: Verify critical constraints preserved in phase3-dispatch.md
+Expected: Agent() template has tools: [Read, Grep, Glob, LSP] and effort: "high"; assembly instructions reference agent-prompt-template.md
+Timestamp: 2026-03-26T00:00:00Z
+
+--- OUTPUT ---
+Checking phase3-dispatch.md for critical constraints:
+
+1. tools: [Read, Grep, Glob, LSP] in Agent() template: FOUND (line 59)
+2. effort: "high" in Agent() template: FOUND (line 58)
+3. Assembly instructions referencing agent-prompt-template.md: FOUND (lines 61-69)
+   - "from agents/{dimension}.md"
+   - "from references/false-positive-exclusions.md — paste verbatim"
+   - "from references/agent-prompt-template.md — paste verbatim"
+   - 8-step assembly list preserved verbatim
+4. security-reviewer always Opus note: FOUND (line 57)
+5. <untrusted-code-content> wrapping instruction: FOUND (line 69)
+6. "Read references/agent-prompt-template.md for the full prompt structure": FOUND (line 73)
+
+Status: PASS

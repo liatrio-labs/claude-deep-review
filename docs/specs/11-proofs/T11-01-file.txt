@@ -1,0 +1,18 @@
+Type: file
+Command: test -f skills/deep-review/references/phase3-dispatch.md
+Expected: File exists with all required sections
+Timestamp: 2026-03-26T00:00:00Z
+
+--- OUTPUT ---
+File exists: skills/deep-review/references/phase3-dispatch.md (81 lines)
+
+Sections present:
+- "What Each Agent Receives" (6-item list): FOUND at line 7
+- "Per-Agent Context Scoping" (7 agents): FOUND at line 20
+- "Agent Roster" (5 always-on + 2 conditional): FOUND at line 34
+- "Agent Tool Call Template" with assembly instructions: FOUND at line 51
+- tools: [Read, Grep, Glob, LSP] and effort: "high": FOUND at lines 58-59
+- Self-verification checkpoint: FOUND at line 75
+- "Agent Failure Handling": FOUND at line 79
+
+Status: PASS
