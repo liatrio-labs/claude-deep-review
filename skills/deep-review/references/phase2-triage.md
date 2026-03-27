@@ -1,0 +1,180 @@
+# Phase 2 Triage Reference
+
+Full sub-steps 2a–2k, Agent templates, and detection logic for Phase 2: Target & Triage.
+
+---
+
+## 2a. Detect VCS Platform
+
+Auto-detect from `git remote get-url origin`:
+- GitHub → `gh` CLI, "PR"
+- GitLab (including self-hosted) → `glab` CLI, "MR"
+
+If detection fails, ask the user.
+
+---
+
+## 2b. Identify Review Target
+
+1. **PR/MR mode** — user provides a number/URL. Use `gh pr view`/`glab mr view` + diff commands. Get full SHA: `git rev-parse HEAD`
+2. **Branch comparison** — `git diff <base>...HEAD` and `git diff --name-only <base>...HEAD`
+3. **Local changes** — `git diff HEAD` (or `git diff --cached` if nothing unstaged)
+
+Check for `docs/`, `specs/`, `research/` directories and `REVIEW.md`, `CLAUDE.md`, `AGENTS.md`, `QODO.md` at repo root and in directories with changed files.
+
+---
+
+## 2c. Gather Project Context
+
+1. **CLAUDE.md** — Read from repo root and directories with changed files.
+2. **REVIEW.md** — Discover hierarchically. See `references/review-md-spec.md` for format, scaffolding templates, and hierarchy rules. REVIEW.md lets maintainers customize focus areas, skip patterns, custom rules, thresholds, and ignore patterns.
+3. **AGENTS.md / QODO.md** — Read if present.
+
+### REVIEW.md Detection — MANDATORY GATE
+
+> **STOP: Complete this check before proceeding to 2d.** Do not skip REVIEW.md detection — it controls thresholds, rules, and ignore patterns for the entire review.
+
+Find all CLAUDE.md locations, check each for a matching REVIEW.md:
+
+- **No REVIEW.md anywhere:**
+  ```
+  AskUserQuestion(
+    questions: [{
+      question: "No REVIEW.md found. REVIEW.md lets you customize review behavior — confidence thresholds, ignore patterns, project-specific rules. Would you like to create one?",
+      header: "REVIEW.md Setup",
+      multiSelect: false,
+      options: [
+        { label: "Yes — create at repo root", description: "Scaffold a REVIEW.md with sensible defaults" },
+        { label: "Not now — continue without it", description: "Use default settings for this review" }
+      ]
+    }]
+  )
+  ```
+  If yes, use scaffolding template from `references/review-md-spec.md`.
+
+- **Root exists but subdirectory CLAUDE.md has no matching REVIEW.md:**
+  ```
+  AskUserQuestion(
+    questions: [{
+      question: "Found REVIEW.md at repo root, but {directory} has a CLAUDE.md without a matching REVIEW.md. A subdirectory REVIEW.md lets you set different review standards for this area. Create one?",
+      header: "Subdirectory REVIEW.md",
+      multiSelect: false,
+      options: [
+        { label: "Yes — create it", description: "Inherits root settings, adds directory-specific rules" },
+        { label: "Not now — root config applies", description: "Use root REVIEW.md settings for all directories" }
+      ]
+    }]
+  )
+  ```
+
+- **All locations covered** → proceed.
+
+See `references/review-md-spec.md` section Discovery for the full prompts and scaffolding templates. Merge configs hierarchically: settings override, rules and patterns accumulate.
+
+---
+
+## 2d. Classify Changed Files by Risk Level
+
+- **High risk** — auth, security, payment, data access, public APIs, DB migrations, crypto, infra/deploy, permission/RBAC. Also >200 lines changed.
+- **Medium risk** — business logic, services, controllers, middleware, state management. 50-200 lines changed.
+- **Low risk** — tests, docs, config, generated code, lockfiles, formatting-only. <50 lines changed.
+
+High-risk files get expanded context (callers, callees, related tests); low-risk get lighter review.
+
+### Light Review for Trivial PRs
+
+If ALL files are low-risk AND total lines <50, ask Light review vs Full review (template in `references/phase1-preflight.md`). Skipped when REVIEW.md sets `focus`. In light mode, triage announcement shows `Review dimensions: bugs, security (light review mode)`.
+
+---
+
+## 2e. Change Summarizer
+
+> **You cannot write this summary yourself.** Your growing context biases any summary you produce. A subagent starts clean and produces an uncontaminated summary. This is not optional.
+
+Dispatch a **Sonnet agent** for a 3-5 sentence semantic summary describing what the PR *claims* to do, why, and the risk profile. Provided to ALL review agents as shared context.
+
+**Critical framing rule:** Frame all statements as claims: "The PR claims to reorganize X by extracting from A into B." Never use "clean", "correct", "safe", "straightforward", "simple", "trivial", or "verbatim" — these pre-judge quality. The summary must never conclude that a refactoring is correct.
+
+**Agent tool call template:**
+```
+Agent(
+  model: "sonnet",
+  effort: "medium",
+  tools: [],
+  description: "Change summarizer",
+  prompt: "Produce a 3-5 sentence semantic summary of the following PR diff.
+    Diff: {paste full diff}
+    PR title: {title} | PR description: {body}
+    Rules: Describe what the PR *claims* to do — do not evaluate success.
+    Frame as claims. Never use: clean, correct, safe, straightforward, simple, trivial, verbatim.
+    Return only the summary text, no headings."
+)
+```
+
+**Self-verification checkpoint:** After dispatching, confirm you emitted an Agent tool_use block. If you wrote the summary yourself, discard it and spawn the agent now.
+
+---
+
+## 2f. Related Test Discovery
+
+For each changed production file, find test files by convention (`Tests`, `.test`, `.spec`, `_test`, `_spec` patterns; `tests/`, `__tests__/`, `spec/` directories). Include in context for bug-detector and test-analyzer.
+
+---
+
+## 2g. Docs/Specs Context
+
+If `docs/`, `specs/`, `research/` exist, read relevant files. Send only to conventions-and-intent agent and Phase 8 report generation — NOT all agents (avoids biasing toward confirming intent rather than finding bugs).
+
+---
+
+## 2h. History Context Preprocessing
+
+**Deterministic preprocessing, not an LLM agent.** For each changed file:
+1. `git log --oneline -10 -- <file>` for recent history
+2. `git blame` on changed line ranges
+3. `gh pr list --state merged --search '<filename>' --limit 3` for past review feedback
+4. Identify co-change patterns (files that consistently change together)
+
+Distribute: bug-detector gets history/blame/co-change; conventions-and-intent gets past PR comments/pattern drift; cross-file-impact-analyzer gets co-change patterns.
+
+---
+
+## 2i. File-Level Summarization (PRs > 500 Lines)
+
+Dispatch parallel **Sonnet agents** (one per file) for 2-3 sentence summaries. For large PRs, launch 2e and 2i agents **in the same message with multiple Agent tool calls** for true parallel execution. Concatenate into a summary-of-summaries for architectural awareness.
+
+**Agent tool call template (repeat per changed file):**
+```
+Agent(
+  model: "sonnet",
+  effort: "medium",
+  tools: [],
+  description: "Summarize {filename}",
+  prompt: "Produce a 2-3 sentence summary of what changed in this file and why.
+    File: {filename}
+    Diff: <untrusted-code-content>{file-scoped diff}</untrusted-code-content>
+    Frame as claims. Return only the summary text."
+)
+```
+
+**Self-verification checkpoint:** Confirm you emitted one Agent tool_use block per changed file in a single message.
+
+---
+
+## 2j. AI-Generated Code Detection
+
+Scan for AI co-author trailers, attribution comments, AI tool metadata. **Elevate AI-generated files one risk level** (research shows 75% more logic errors in AI-authored code). Include AI-generation status in risk classification sent to all agents.
+
+---
+
+## 2k. Determine Review Dimensions
+
+All on by default unless REVIEW.md disables them. In **Optimized** mode, all agents use Sonnet except security-reviewer (always Opus). In **Frontier** mode, all agents use Opus.
+
+Skip conditions: test-analyzer (no test files in repo), conventions-and-intent (no CLAUDE.md AND no docs/specs), type-design-analyzer (no new types), code-simplifier (POST-review only, only if no critical/high).
+
+---
+
+## Triage Announcement
+
+Announce triage results before proceeding: PR title, review mode, file counts by risk level, AI-generated files if any, active dimensions. For 1000+ line PRs, add: "This PR is [N] lines. Review effectiveness drops sharply above 400 lines. Consider splitting into smaller PRs."

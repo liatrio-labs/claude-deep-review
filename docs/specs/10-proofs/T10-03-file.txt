@@ -1,0 +1,32 @@
+Type: file
+Check: Critical constraints preserved verbatim
+Timestamp: 2026-03-26T00:00:00Z
+
+Verification of critical content in phase2-triage.md:
+
+1. "You cannot write this summary yourself" constraint:
+   Found at: references/phase2-triage.md, section 2e
+   Text: "> **You cannot write this summary yourself.** Your growing context biases any summary you produce. A subagent starts clean and produces an uncontaminated summary. This is not optional."
+   Status: PASS — preserved verbatim
+
+2. Critical framing rule (claims not conclusions):
+   Found at: references/phase2-triage.md, section 2e
+   Text: "**Critical framing rule:** Frame all statements as claims: \"The PR claims to reorganize X by extracting from A into B.\" Never use \"clean\", \"correct\", \"safe\", \"straightforward\", \"simple\", \"trivial\", or \"verbatim\" — these pre-judge quality. The summary must never conclude that a refactoring is correct."
+   Status: PASS — preserved verbatim
+
+3. Agent() templates include required fields (tools, effort, model):
+   - 2e template: model: "sonnet", effort: "medium", tools: []
+   - 2i template: model: "sonnet", effort: "medium", tools: []
+   Status: PASS
+
+4. AskUserQuestion templates (both variants):
+   - No REVIEW.md anywhere: PRESENT with full structured syntax
+   - Root exists but subdirectory missing: PRESENT with full structured syntax
+   Status: PASS
+
+5. Self-verification checkpoints:
+   - 2e: "After dispatching, confirm you emitted an Agent tool_use block."
+   - 2i: "Confirm you emitted one Agent tool_use block per changed file in a single message."
+   Status: PASS
+
+Overall Status: PASS
