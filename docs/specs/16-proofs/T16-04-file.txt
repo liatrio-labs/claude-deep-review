@@ -1,0 +1,10 @@
+Type: file
+Check: M-5 zero-findings guidance in report-format.md
+Expected: Note about producing clean report with 0 findings and methodology section
+Timestamp: 2026-03-26T00:00:00Z
+
+--- VERIFICATION ---
+File: skills/deep-review/references/report-format.md
+Line 5: **Zero findings:** If all findings are eliminated during the pipeline, produce a clean report that includes the executive summary (showing 0 findings) and the Review Methodology section. Omit empty severity sections entirely. The clean outcome is meaningful — it confirms the pipeline ran and found nothing.
+
+Status: PASS

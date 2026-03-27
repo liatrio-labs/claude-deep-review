@@ -111,6 +111,8 @@ Store the delivery selection for Phase 8. Confirm in output before continuing.
 
 ## Light Review Template (Phase 2d)
 
+> **Note:** This template is triggered during Phase 2d (risk classification). It lives here because it is a pre-flight UX decision — the user's answer affects what review dimensions run, so it is collected alongside the other pre-flight gates.
+
 Used when ALL files are low-risk AND total lines <50:
 
 ```

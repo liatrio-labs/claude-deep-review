@@ -1,0 +1,21 @@
+Type: file
+Check: M-3 permalink format using line_start/line_end in report-format.md
+Expected: Table row and bullet list formats use line_start/line_end instead of single line variable
+Timestamp: 2026-03-26T00:00:00Z
+
+--- VERIFICATION ---
+File: skills/deep-review/references/report-format.md
+
+Medium Issues table row (line 100):
+  [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1})
+  Status: PASS
+
+Low-Priority Suggestions bullet (line 110):
+  [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1})
+  Status: PASS
+
+Improvement Suggestions subsections (lines 134, 140, 146):
+  [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1})
+  Status: PASS
+
+Status: PASS

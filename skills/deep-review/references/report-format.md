@@ -2,6 +2,8 @@
 
 Use this template for the unified review report. Adapt section headers based on what was actually found — don't include empty sections.
 
+**Zero findings:** If all findings are eliminated during the pipeline, produce a clean report that includes the executive summary (showing 0 findings) and the Review Methodology section. Omit empty severity sections entirely. The clean outcome is meaningful — it confirms the pipeline ran and found nothing.
+
 **Emoji format:** Always use Unicode emoji characters (🔴 🟠 🟡 💡), never GitHub shortcodes (`:red_circle:`, `:orange_circle:`). Shortcodes don't render in terminal/chat output.
 
 ## GitHub Permalink Format
@@ -95,7 +97,7 @@ Example: "This PR adds JWT-based authentication to the API layer. The token vali
 
 | # | File | Issue | Dimension | Confidence |
 |---|------|-------|-----------|------------|
-| {id} | [`{file}:{line}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line-1}-L{line+1}) | {title} | {dimension} | {confidence}% |
+| {id} | [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1}) | {title} | {dimension} | {confidence}% |
 
 {For each, a brief 1-2 sentence description below the table, or expand inline if the issue is nuanced.}
 
@@ -105,7 +107,7 @@ Example: "This PR adds JWT-based authentication to the API layer. The token vali
 
 {Nice to have. Bullet list format:}
 
-- **{id}**: [`{file}:{line}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line-1}-L{line+1}) — {title} ({dimension}, {confidence}%)
+- **{id}**: [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1}) — {title} ({dimension}, {confidence}%)
 
 ---
 
@@ -129,19 +131,19 @@ Severity has been downgraded one level from the original classification (see Pha
 
 {Findings from test-analyzer, if any. Omit sub-section if empty.}
 
-- **{id}**: [`{file}:{line}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line-1}-L{line+1}) — {title} ({confidence}%)
+- **{id}**: [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1}) — {title} ({confidence}%)
 
 ### Documentation
 
 {Findings from conventions-and-intent comment accuracy pass, if any. Omit sub-section if empty.}
 
-- **{id}**: [`{file}:{line}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line-1}-L{line+1}) — {title} ({confidence}%)
+- **{id}**: [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1}) — {title} ({confidence}%)
 
 ### Code Quality
 
 {Findings from code-simplifier, if any. Omit sub-section if empty.}
 
-- **{id}**: [`{file}:{line}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line-1}-L{line+1}) — {title} ({confidence}%)
+- **{id}**: [`{file}:{line_start}`](https://github.com/{owner}/{repo}/blob/{full_sha}/{file}#L{line_start-1}-L{line_end+1}) — {title} ({confidence}%)
 
 ---
 

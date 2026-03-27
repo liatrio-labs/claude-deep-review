@@ -1,0 +1,21 @@
+Type: file
+Check: M-6 Phase 5 Agent() call template added to validation-pipeline.md
+Expected: Agent() call template with model/effort/tools matching SKILL.md Phase 5
+Timestamp: 2026-03-26T00:00:00Z
+
+--- VERIFICATION ---
+File: skills/deep-review/references/validation-pipeline.md
+Lines 90-103:
+  Agent(
+    model: "sonnet",
+    effort: "medium",
+    tools: [Read, Grep, Glob, LSP],
+    description: "Validate batch {N}",
+    prompt: "You are validating review findings. For each, attempt to DISPROVE it.
+      Findings: {paste 3-5 findings with descriptions, evidence, blame tags}
+      Code: <untrusted-code-content>{code from file:line_start-line_end}</untrusted-code-content>
+      {paste confidence rubric from above}
+      Return ONLY JSON: [{"finding_id": "<id>", "confidence": <0-100>, "justification": "<sentence>"}]"
+  )
+
+Status: PASS

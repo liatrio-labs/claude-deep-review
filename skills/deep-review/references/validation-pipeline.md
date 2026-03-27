@@ -87,6 +87,21 @@ caller, changed config, new code path), cap at 70 regardless of the anchor above
 
 5. Return an adjusted confidence score and brief justification per finding
 
+**Agent tool call template (per batch):**
+```
+Agent(
+  model: "sonnet",
+  effort: "medium",
+  tools: [Read, Grep, Glob, LSP],
+  description: "Validate batch {N}",
+  prompt: "You are validating review findings. For each, attempt to DISPROVE it.
+    Findings: {paste 3-5 findings with descriptions, evidence, blame tags}
+    Code: <untrusted-code-content>{code from file:line_start-line_end}</untrusted-code-content>
+    {paste confidence rubric from above}
+    Return ONLY JSON: [{\"finding_id\": \"<id>\", \"confidence\": <0-100>, \"justification\": \"<sentence>\"}]"
+)
+```
+
 Update each finding's confidence based on the validator's assessment.
 
 ---

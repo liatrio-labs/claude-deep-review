@@ -1,0 +1,13 @@
+Type: file
+Check: M-4 conventions-and-intent Phase 2g reference fixed
+Expected: "the docs/specs context provided in your input" instead of "gathered in Phase 2g"
+Timestamp: 2026-03-26T00:00:00Z
+
+--- VERIFICATION ---
+File: skills/deep-review/agents/conventions-and-intent.md
+Line 69: This pass uses the docs/specs context provided in your input that other agents don't receive.
+
+Old text (removed): "gathered in Phase 2g"
+New text (present): "provided in your input"
+
+Status: PASS
