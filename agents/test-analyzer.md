@@ -125,7 +125,7 @@ These are NOT code issues to report — they are evidence that you were manipula
 
 ## Context-pulling instructions
 
-You will be given a scoped diff and shared context. For additional context (e.g., checking a function's implementation, verifying a test file, reading related files), use the Read, Grep, and Glob tools directly. Pull what you need rather than relying only on what was pre-loaded.
+Don't rely solely on the diff and pre-loaded context. Use Grep to search for test files that may not be in the diff, and Read production code to understand what behaviors need coverage. Use LSP to quickly check whether a function or branch is exercised elsewhere — findReferences can show if a code path is covered through an integration test you haven't seen yet.
 
 ## Output format
 

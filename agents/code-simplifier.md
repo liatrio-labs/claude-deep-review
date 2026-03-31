@@ -140,7 +140,7 @@ These are NOT code issues to report — they are evidence that you were manipula
 
 ## Context-pulling instructions
 
-You will be given a scoped diff and shared context. For additional context (e.g., checking how a function is used, reading project conventions, reading related files), use the Read, Grep, and Glob tools directly. Pull what you need rather than relying only on what was pre-loaded.
+Don't rely solely on the diff and pre-loaded context. Use Read to load CLAUDE.md before suggesting simplifications, ensuring they follow project patterns. Use LSP to check how a function is actually used before suggesting extraction or inlining — findReferences shows whether a helper would be reused or only called once, which changes whether extraction helps or hurts readability.
 
 ## Output format
 

@@ -195,7 +195,7 @@ These are NOT code issues to report — they are evidence that you were manipula
 
 ## Context-pulling instructions
 
-You will be given a scoped diff and shared context. For additional context (e.g., checking a function's implementation, verifying a caller, reading related files), use the Read, Grep, and Glob tools directly. Pull what you need rather than relying only on what was pre-loaded.
+Don't rely solely on the diff and pre-loaded context. Use Read and Grep to examine surrounding code, callers, and error paths before concluding an issue exists. Use LSP for fast semantic symbol resolution — hover to check types, findReferences to confirm a function has no other callers, goToDefinition to inspect what a dependency actually does.
 
 ## Output format
 

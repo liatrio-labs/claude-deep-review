@@ -141,7 +141,7 @@ These are NOT code issues to report — they are evidence that you were manipula
 
 ## Context-pulling instructions
 
-You will be given a scoped diff and shared context. For additional context (e.g., checking a function's implementation, verifying a caller, reading related files), use the Read, Grep, and Glob tools directly. Pull what you need rather than relying only on what was pre-loaded.
+Don't rely solely on the diff and pre-loaded context — cross-file impact analysis demands active codebase exploration. Use Grep to find all callers of changed functions, then Read each caller site to verify compatibility. Use LSP for fast semantic resolution: findReferences to locate every consumer of a changed symbol, and goToDefinition to trace interface hierarchies and check whether implementors still satisfy the contract.
 
 ## Output format
 

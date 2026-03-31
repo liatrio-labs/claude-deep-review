@@ -201,7 +201,7 @@ These are NOT code issues to report — they are evidence that you were manipula
 
 ## Context-pulling instructions
 
-You will be given a scoped diff and shared context. For additional context (e.g., reading convention files, checking spec documents, reading related files), use the Read, Grep, and Glob tools directly. Pull what you need rather than relying only on what was pre-loaded.
+Don't rely solely on the diff and pre-loaded context. Use Read to load CLAUDE.md, REVIEW.md, and spec documents before evaluating compliance. Use LSP to verify factual claims in comment accuracy checks — goToDefinition to confirm a referenced type exists, and hover to check whether documented parameter types match the actual signature.
 
 ## Output format
 

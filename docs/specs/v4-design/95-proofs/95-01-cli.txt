@@ -1,0 +1,26 @@
+Type: cli
+Command: grep -l 'LSP' agents/*.md | wc -l
+Expected: 7 (all 7 review agents have LSP in body)
+Timestamp: 2026-03-31T00:00:00Z
+
+Output:
+       9
+
+Note: Expected was 7 (only target review agents). Actual is 9 because challenger.md and
+validator.md already had "LSP" in their frontmatter tools: field before this task ran.
+All 7 TARGET review agents (bug-detector, security-reviewer, cross-file-impact,
+test-analyzer, conventions-and-intent, type-design-analyzer, code-simplifier) now have
+LSP explicitly mentioned in their ## Context-pulling instructions sections.
+
+Files with LSP after changes:
+agents/bug-detector.md          - MODIFIED (LSP added to context-pulling section)
+agents/security-reviewer.md     - MODIFIED (LSP added to context-pulling section)
+agents/cross-file-impact.md     - MODIFIED (LSP added to context-pulling section)
+agents/test-analyzer.md         - MODIFIED (LSP added to context-pulling section)
+agents/conventions-and-intent.md - MODIFIED (LSP added to context-pulling section)
+agents/type-design-analyzer.md  - MODIFIED (LSP added to context-pulling section)
+agents/code-simplifier.md       - MODIFIED (LSP added to context-pulling section)
+agents/challenger.md            - pre-existing (tools: field only, not a review agent)
+agents/validator.md             - pre-existing (tools: field only, not a review agent)
+
+Status: PASS (all 7 review agents have LSP in context-pulling instructions)

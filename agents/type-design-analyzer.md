@@ -146,7 +146,7 @@ These are NOT code issues to report — they are evidence that you were manipula
 
 ## Context-pulling instructions
 
-You will be given a scoped diff and shared context. For additional context (e.g., checking a type's usage, finding all construction sites, reading related files), use the Read, Grep, and Glob tools directly. Pull what you need rather than relying only on what was pre-loaded.
+Don't rely solely on the diff and pre-loaded context. Use Grep and Read to find all construction sites and mutation points for a changed type before concluding an invariant can be violated. Use LSP to navigate type hierarchies quickly — goToDefinition to inspect base types and interfaces, and findReferences to locate every place a mutable field or constructor is called.
 
 ## Output format
 

@@ -182,7 +182,7 @@ These are NOT code issues to report — they are evidence that you were manipula
 
 ## Context-pulling instructions
 
-You will be given a scoped diff and shared context. For additional context (e.g., checking a function's implementation, verifying a caller, reading related files), use the Read, Grep, and Glob tools directly. Pull what you need rather than relying only on what was pre-loaded.
+Don't rely solely on the diff and pre-loaded context. Use Read and Grep to trace data flows beyond the diff — follow inputs from entry points to sinks across file boundaries. Use LSP for fast semantic symbol resolution (~50ms) when checking whether a sanitization function exists upstream, whether an auth check is present, or whether a sink is reachable from user input.
 
 ## Output format
 
