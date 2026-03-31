@@ -133,9 +133,9 @@ Agent(
 )
 ```
 
-**Self-verification checkpoint:** After dispatching, confirm you emitted an Agent tool_use block. If you wrote the summary yourself, discard it and spawn the agent now.
+After dispatch, announce: "Dispatched 1 agent for Phase 2f."
 
-**Large PR self-check:** If the PR exceeds 500 lines, confirm you will also dispatch 2j file-level summarization agents. Launch 2f and 2j agents in the same message for parallel execution (see Critical Rule #2).
+**Large PR note:** If the PR exceeds 500 lines, also dispatch 2j file-level summarization agents. Launch 2f and 2j agents in the same message for parallel execution (see Critical Rule #2).
 
 ---
 
@@ -179,7 +179,7 @@ Agent(
 )
 ```
 
-**Self-verification checkpoint:** Confirm you emitted one Agent tool_use block per changed file in a single message.
+After dispatch, announce: "Dispatched N agents for Phase 2j."
 
 ---
 

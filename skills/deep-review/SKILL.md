@@ -103,7 +103,7 @@ Agent(
 )
 ```
 
-**Self-verification checkpoint:** Confirm you emitted Agent tool_use blocks for validation. If you wrote reasoning instead, stop and spawn agents now.
+After dispatch, announce: "Dispatched N agents for Phase 5."
 
 Update each finding's confidence based on the validator's assessment.
 
@@ -162,7 +162,7 @@ Do NOT include original reasoning or evidence — only title, description, and r
 - **50-74** → Flag as "contested," no severity change.
 - **>= 75** → Survives.
 
-**Self-verification checkpoint:** Confirm you emitted Agent tool_use blocks for the challenge round.
+After dispatch, announce: "Dispatched N agents for Phase 7."
 
 ### Post-challenge finalization
 

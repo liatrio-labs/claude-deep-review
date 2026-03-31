@@ -178,7 +178,7 @@ Tag each surviving finding by its eventual report destination. This is a tagging
 
 # Phase 7: Blind Challenge + Post-Challenge Finalization
 
-See **SKILL.md Phase 7** for the primary instructions, MANDATORY GATE, Agent tool call template, and self-verification checkpoint. The challenge round runs on **every finding** that survived Phase 6 — no trigger conditions, no threshold check. This section provides supplementary detail.
+See **SKILL.md Phase 7** for the primary instructions, MANDATORY GATE, and Agent tool call template. The challenge round runs on **every finding** that survived Phase 6 — no trigger conditions, no threshold check. This section provides supplementary detail.
 
 ## Blind challenge — supplementary detail
 
@@ -223,7 +223,7 @@ Do NOT include original reasoning or evidence — only title, description, and r
 - No ADD mechanism — original agents already had their chance
 - No voting/debate protocol — majority voting captures the same gains as debate without sycophancy risk
 
-**Challenge coverage self-check:** After dispatching all challengers, count surviving findings from Phase 6 and count challenge agents dispatched. These numbers must match. If any finding was not challenged, dispatch its challenger now before proceeding to post-challenge finalization.
+After dispatch, announce: "Dispatched N agents for Phase 7." (N must equal the number of findings that survived Phase 6 — dispatch any missing challengers before proceeding.)
 
 ---
 

@@ -79,7 +79,7 @@ Agent(
 
 The agent definition (in `agents/{dimension}.md`) handles: agent role, instructions, exclusion list, confidence rubric, output schema, effort, and default model. Do not re-assemble these in the prompt — they are already baked into the named subagent.
 
-**Self-verification checkpoint:** Before Phase 4, confirm you emitted Agent tool_use blocks for ALL applicable review agents. If you wrote analysis text instead, stop and spawn the agents now.
+After dispatch, announce: "Dispatched N agents for Phase 3."
 
 ---
 
