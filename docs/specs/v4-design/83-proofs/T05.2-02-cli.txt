@@ -1,0 +1,10 @@
+Type: cli
+Command: grep 'filter_findings' skills/deep-review/references/validation-pipeline.md
+Expected: Script reference found
+Timestamp: 2026-03-31T00:00:00Z
+
+Output:
+Handled by `scripts/filter_findings.py`. Run it against the Phase 5 validated findings before the Phase 7 blind challenge.
+python3 scripts/filter_findings.py <findings_json> [--review-md path] [--exclusions-md path]
+
+Status: PASS
