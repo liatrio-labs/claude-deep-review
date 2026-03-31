@@ -1,0 +1,346 @@
+Type: cli
+Command: python3 scripts/filter_findings.py <findings.json> [--review-md <path>] [--exclusions-md <path>]
+Expected: Correct threshold/severity filtering with proper output schema
+Timestamp: 2026-03-31T19:34:00Z
+
+=== Test A: Default thresholds (confidence=80, security_min=70, severity=low) ===
+
+Input: 5 findings:
+  bug-001: security, conf=95, severity=critical  -> EXPECT: pass (95>=70 security_min)
+  bug-002: null-handling, conf=85, severity=high -> EXPECT: pass (85>=80)
+  bug-003: conventions, conf=72, severity=low    -> EXPECT: eliminated (72<80)
+  bug-004: logic, conf=60, severity=medium       -> EXPECT: eliminated (60<80)
+  bug-005: security, conf=68, severity=high      -> EXPECT: eliminated (68<70 security_min)
+
+{
+  "filtered": [
+    {
+      "id": "bug-001",
+      "file": "src/auth.py",
+      "line": 42,
+      "severity": "critical",
+      "confidence": 95,
+      "title": "SQL Injection in login query",
+      "body": "User input is concatenated directly into SQL query without parameterization.",
+      "blame_tag": "new",
+      "dimensions": [
+        "security"
+      ],
+      "consensus_count": 1,
+      "consensus_boost": 0,
+      "contradiction": false,
+      "report_tag": "main"
+    },
+    {
+      "id": "bug-002",
+      "file": "src/utils.py",
+      "line": 17,
+      "severity": "high",
+      "confidence": 85,
+      "title": "Null dereference in getUserById",
+      "body": "Return value from db.query() is not checked for null before accessing .id.",
+      "blame_tag": "new",
+      "dimensions": [
+        "null-handling"
+      ],
+      "consensus_count": 1,
+      "consensus_boost": 0,
+      "contradiction": false,
+      "report_tag": "main"
+    }
+  ],
+  "eliminated": [
+    {
+      "id": "bug-003",
+      "file": "src/utils.py",
+      "line": 55,
+      "severity": "low",
+      "confidence": 72,
+      "title": "Minor style issue",
+      "body": "Variable name does not follow naming convention.",
+      "blame_tag": "pre-existing",
+      "dimensions": [
+        "conventions"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 72 < threshold 80"
+    },
+    {
+      "id": "bug-004",
+      "file": "src/api.py",
+      "line": 100,
+      "severity": "medium",
+      "confidence": 60,
+      "title": "Low confidence bug",
+      "body": "Potential race condition in request handling.",
+      "blame_tag": "new",
+      "dimensions": [
+        "logic"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 60 < threshold 80"
+    },
+    {
+      "id": "bug-005",
+      "file": "src/cache.py",
+      "line": 30,
+      "severity": "high",
+      "confidence": 68,
+      "title": "Missing cache expiration",
+      "body": "Security: Cache entries never expire, leading to stale auth tokens.",
+      "blame_tag": "new",
+      "dimensions": [
+        "security"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 68 < threshold 70"
+    }
+  ],
+  "stats": {
+    "total": 5,
+    "passed_threshold": 2,
+    "injections_removed": 0,
+    "consensus_boosted": 0,
+    "tagged_main": 2,
+    "tagged_suggestion": 0
+  },
+  "generated_at": "2026-03-31T19:34:51.016510+00:00"
+}
+
+Check: filtered count = 2 (bug-001, bug-002)
+Check: eliminated count = 3 (bug-003 conf, bug-004 conf, bug-005 security_min)
+Check: stats.passed_threshold = 2
+Check: stats.total = 5
+
+=== Test B: Custom REVIEW.md thresholds (confidence=85, security_min=65, severity=medium) ===
+
+Input: same 5 findings as Test A
+  bug-001: security, conf=95, severity=critical  -> EXPECT: pass (95>=65)
+  bug-002: null-handling, conf=85, severity=high -> EXPECT: pass (85>=85)
+  bug-003: conventions, conf=72, severity=low    -> EXPECT: eliminated (low < medium threshold)
+  bug-004: logic, conf=60, severity=medium       -> EXPECT: eliminated (60<85)
+  bug-005: security, conf=68, severity=high      -> EXPECT: pass (68>=65, high>=medium)
+
+{
+  "filtered": [
+    {
+      "id": "bug-001",
+      "file": "src/auth.py",
+      "line": 42,
+      "severity": "critical",
+      "confidence": 95,
+      "title": "SQL Injection in login query",
+      "body": "User input is concatenated directly into SQL query without parameterization.",
+      "blame_tag": "new",
+      "dimensions": [
+        "security"
+      ],
+      "consensus_count": 1,
+      "consensus_boost": 0,
+      "contradiction": false,
+      "report_tag": "main"
+    },
+    {
+      "id": "bug-002",
+      "file": "src/utils.py",
+      "line": 17,
+      "severity": "high",
+      "confidence": 85,
+      "title": "Null dereference in getUserById",
+      "body": "Return value from db.query() is not checked for null before accessing .id.",
+      "blame_tag": "new",
+      "dimensions": [
+        "null-handling"
+      ],
+      "consensus_count": 1,
+      "consensus_boost": 0,
+      "contradiction": false,
+      "report_tag": "main"
+    },
+    {
+      "id": "bug-005",
+      "file": "src/cache.py",
+      "line": 30,
+      "severity": "high",
+      "confidence": 68,
+      "title": "Missing cache expiration",
+      "body": "Security: Cache entries never expire, leading to stale auth tokens.",
+      "blame_tag": "new",
+      "dimensions": [
+        "security"
+      ],
+      "consensus_count": 1,
+      "consensus_boost": 0,
+      "contradiction": false,
+      "report_tag": "main"
+    }
+  ],
+  "eliminated": [
+    {
+      "id": "bug-003",
+      "file": "src/utils.py",
+      "line": 55,
+      "severity": "low",
+      "confidence": 72,
+      "title": "Minor style issue",
+      "body": "Variable name does not follow naming convention.",
+      "blame_tag": "pre-existing",
+      "dimensions": [
+        "conventions"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 72 < threshold 85"
+    },
+    {
+      "id": "bug-004",
+      "file": "src/api.py",
+      "line": 100,
+      "severity": "medium",
+      "confidence": 60,
+      "title": "Low confidence bug",
+      "body": "Potential race condition in request handling.",
+      "blame_tag": "new",
+      "dimensions": [
+        "logic"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 60 < threshold 85"
+    }
+  ],
+  "stats": {
+    "total": 5,
+    "passed_threshold": 3,
+    "injections_removed": 0,
+    "consensus_boosted": 0,
+    "tagged_main": 3,
+    "tagged_suggestion": 0
+  },
+  "generated_at": "2026-03-31T19:34:51.046317+00:00"
+}
+
+Check: filtered count = 3 (bug-001, bug-002, bug-005)
+Check: eliminated count = 2 (bug-003 severity, bug-004 conf)
+Check: stats.passed_threshold = 3
+
+=== Test C: Exclusions filter via --exclusions-md ===
+
+{
+  "filtered": [
+    {
+      "id": "bug-002",
+      "file": "src/utils.py",
+      "line": 17,
+      "severity": "high",
+      "confidence": 85,
+      "title": "Null dereference in getUserById",
+      "body": "Return value from db.query() is not checked for null before accessing .id.",
+      "blame_tag": "new",
+      "dimensions": [
+        "null-handling"
+      ],
+      "consensus_count": 1,
+      "consensus_boost": 0,
+      "contradiction": false,
+      "report_tag": "main"
+    }
+  ],
+  "eliminated": [
+    {
+      "id": "bug-003",
+      "file": "src/utils.py",
+      "line": 55,
+      "severity": "low",
+      "confidence": 72,
+      "title": "Minor style issue",
+      "body": "Variable name does not follow naming convention.",
+      "blame_tag": "pre-existing",
+      "dimensions": [
+        "conventions"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 72 < threshold 80"
+    },
+    {
+      "id": "bug-004",
+      "file": "src/api.py",
+      "line": 100,
+      "severity": "medium",
+      "confidence": 60,
+      "title": "Low confidence bug",
+      "body": "Potential race condition in request handling.",
+      "blame_tag": "new",
+      "dimensions": [
+        "logic"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 60 < threshold 80"
+    },
+    {
+      "id": "bug-005",
+      "file": "src/cache.py",
+      "line": 30,
+      "severity": "high",
+      "confidence": 68,
+      "title": "Missing cache expiration",
+      "body": "Security: Cache entries never expire, leading to stale auth tokens.",
+      "blame_tag": "new",
+      "dimensions": [
+        "security"
+      ],
+      "eliminated_by": "threshold",
+      "elimination_reason": "confidence 68 < threshold 70"
+    },
+    {
+      "id": "bug-001",
+      "file": "src/auth.py",
+      "line": 42,
+      "severity": "critical",
+      "confidence": 95,
+      "title": "SQL Injection in login query",
+      "body": "User input is concatenated directly into SQL query without parameterization.",
+      "blame_tag": "new",
+      "dimensions": [
+        "security"
+      ],
+      "eliminated_by": "exclusion",
+      "elimination_reason": "matched exclusion pattern: 'SQL Injection in login'"
+    }
+  ],
+  "stats": {
+    "total": 5,
+    "passed_threshold": 2,
+    "injections_removed": 0,
+    "consensus_boosted": 0,
+    "tagged_main": 1,
+    "tagged_suggestion": 0
+  },
+  "generated_at": "2026-03-31T19:34:51.079614+00:00"
+}
+
+Check: bug-001 is excluded (title matches exclusion pattern "SQL Injection in login")
+Check: Only bug-002 remains in filtered (bug-001 excluded, others eliminated by threshold)
+
+=== Test D: Syntax and help verification ===
+
+Syntax: PASS
+usage: filter_findings.py [-h] [--review-md PATH] [--exclusions-md PATH]
+                          [--output PATH]
+                          findings_json
+
+Deterministic Phase 6 filter for deep-review findings. Applies
+confidence/severity thresholds, injection detection, disagreement scoring, and
+output tagging.
+
+positional arguments:
+  findings_json         Path to verified findings JSON (from
+                        verify_findings.py or Phase 5 output).
+
+options:
+  -h, --help            show this help message and exit
+  --review-md PATH      Path to REVIEW.md for custom confidence_threshold,
+                        severity_threshold, and ignore patterns.
+  --exclusions-md PATH  Path to false-positive-exclusions.md. Omit to skip
+                        exclusion filtering.
+  --output PATH         Write output JSON to this file instead of stdout.
+
+Status: PASS

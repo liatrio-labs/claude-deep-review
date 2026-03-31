@@ -1,0 +1,30 @@
+Type: test
+Command: python3 inline test suite for apply_threshold_filter()
+Expected: All tests PASS
+Timestamp: 2026-03-31T19:34:13.775497+00:00
+
+[PASS] T1: confidence below threshold -> eliminated
+[PASS] T1: eliminated_by = threshold
+[PASS] T1: elimination_reason mentions confidence
+[PASS] T2: confidence at threshold -> passes
+[PASS] T3: security confidence 75 >= security_min 70 -> passes
+[PASS] T4: security confidence 65 < security_min 70 -> eliminated
+[PASS] T5: security uses min(conf_threshold, security_min)
+[PASS] T6: severity 'low' below threshold 'medium' -> eliminated
+[PASS] T6: elimination_reason mentions severity
+[PASS] T7: severity 'medium' at threshold 'medium' -> passes
+[PASS] T8: severity 'critical' above threshold 'medium' -> passes
+[PASS] T9: unknown severity treated as low
+[PASS] T9: warning issued for unknown severity
+[PASS] T10: empty input -> empty output
+[PASS] T11: missing confidence defaults to 0 -> eliminated
+[PASS] T12: original dict not mutated (eliminated_by absent)
+[PASS] T13: 3 findings, 2 pass 1 fails
+[PASS] T13: eliminated is the low-confidence one
+[PASS] T14: DEFAULT_CONFIDENCE_THRESHOLD == 80
+[PASS] T14: DEFAULT_SECURITY_MIN_CONFIDENCE == 70
+[PASS] T14: DEFAULT_SEVERITY_THRESHOLD == 'low'
+[PASS] T14: SEVERITY_ORDER has correct order
+
+Results: 22 PASS, 0 FAIL out of 22 checks
+Status: PASS
