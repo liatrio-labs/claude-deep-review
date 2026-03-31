@@ -53,7 +53,33 @@ AskUserQuestion(
 
 Track which findings were selected (**pr_comment_set**) for Stage 2 shortcut.
 
-Read `references/delivery-guide.md` for PR comment posting details (batched review event, platform-specific API, comment body format, findings metadata footer).
+**Step B.1. Write findings JSON and run post_review.py**
+
+Write the selected findings to a JSON file in the findings format specified in `references/delivery-guide.md`, then invoke the delivery script:
+
+```bash
+# Write findings JSON
+Write(file_path="$TMPDIR/deep-review-findings.json", content={
+  "review_body": "{summary comment}",
+  "findings": [{
+    "file": "src/foo.py",
+    "line": 42,
+    "end_line": 45,          # optional
+    "severity": "high",
+    "title": "...",
+    "body": "...",
+    "suggested_fix_code": "..." # optional
+  }, ...],
+  "owner": "{owner}",
+  "repo": "{repo}",
+  "pr_number": {number}
+})
+
+# Run the script
+Bash(command="python3 {skill_base}/scripts/post_review.py $TMPDIR/deep-review-findings.json")
+```
+
+Do NOT post PR comments via direct `gh api` or `glab api` calls — use `post_review.py` instead. See `references/delivery-guide.md` for the findings JSON schema and validation details.
 
 **Step C. Markdown file** — if selected, write to `./deep-review-{date}.md`.
 

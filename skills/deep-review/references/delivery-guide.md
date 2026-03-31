@@ -32,124 +32,83 @@ Implementation details for each delivery method in Phase 8.
 
 Severity emojis: 🔴 critical, 🟠 high, 🟡 medium, 💡 low.
 
-### Posting comments — use Python, not shell JSON
+### Using post_review.py
 
-Shell-constructed JSON fails because of the double-escaping trap (JSON escaping + bash metacharacters). Python `json.dumps()` to temp file → `gh/glab api --input` is the most reliable pattern. **Always use this approach — never construct JSON payloads in bash.**
+**Do NOT post PR comments via direct `gh api` or `glab api` calls.** Use the bundled `scripts/post_review.py` script instead. It handles platform detection, diff validation, and API calls deterministically.
 
-**Use the Write tool to create the script file, then run it with Bash.** Do NOT use heredocs (`python3 << 'EOF'`) or inline Python via `Bash(python3 -c ...)` — both cause shell escaping issues where `!=` becomes `\!=` (invalid Python syntax). The Write tool outputs the script verbatim with no shell interpretation.
-
-```
-Step 1: Write(file_path="$TMPDIR/post_review.py", content=<the script>)
-Step 2: Bash("python3 $TMPDIR/post_review.py")
+**Usage:**
+```bash
+python3 {skill_base}/scripts/post_review.py <findings_json_path>
 ```
 
-Reference implementations below — use Write to create these as files, never paste them into heredocs or shell strings:
+**Findings JSON schema:**
 
-#### GitHub — batched PR review
-
-```python
-# Write this to $TMPDIR/post_review.py via the Write tool
-import json, subprocess, tempfile, os, sys
-
-owner = "{owner}"
-repo = "{repo}"
-pr_number = {number}
-
-payload = {
-    "body": "{summary comment with finding counts and footer}",
-    "event": "COMMENT",  # always COMMENT — never REQUEST_CHANGES or APPROVE
-    "comments": [
+```json
+{
+    "review_body": "Executive summary comment with finding counts and footer",
+    "findings": [
         {
-            "path": "{file_path}",
-            "line": {line_number},
-            "side": "RIGHT",
-            "body": "{comment body with emoji, markdown, code blocks}",
-        },
-        # ... up to 6 inline comments for Default mode; no cap for "Let me pick"
+            "file": "src/foo.py",
+            "line": 42,
+            "end_line": 45,
+            "severity": "critical|high|medium|low",
+            "title": "Finding title",
+            "body": "Detailed description",
+            "suggested_fix_code": "code block (optional; renders as suggestion)"
+        }
     ],
+    "owner": "repository-owner",
+    "repo": "repository-name",
+    "pr_number": 123,
+    "platform": "github|gitlab"
 }
-
-fd, tmp = tempfile.mkstemp(suffix=".json")
-try:
-    with os.fdopen(fd, "w") as f:
-        json.dump(payload, f, ensure_ascii=False)
-    result = subprocess.run(
-        ["gh", "api", "--method", "POST",
-         "-H", "Accept: application/vnd.github+json",
-         f"repos/{owner}/{repo}/pulls/{pr_number}/reviews",
-         "--input", tmp],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        print(f"FAILED: {result.stderr}", file=sys.stderr)
-        sys.exit(1)
-    resp = json.loads(result.stdout)
-    print(f"Review posted: {resp.get('html_url', resp.get('id'))}")
-finally:
-    os.unlink(tmp)
 ```
 
-#### GitLab — inline MR discussions
+**Fields:**
+- `review_body` — executive summary comment (counts, no spoilers)
+- `findings` — array of inline comments
+  - `file` — relative path in repository
+  - `line` — line number in diff (new version)
+  - `end_line` — optional; enables multi-line comments on GitHub
+  - `severity` — emoji selected from: critical, high, medium, low
+  - `title` — one-line finding summary
+  - `body` — explanation and context
+  - `suggested_fix_code` — optional code block rendered as GitHub/GitLab suggestion
+- `owner` — repository owner (GitHub org/user or GitLab group)
+- `repo` — repository name
+- `pr_number` — GitHub PR number or GitLab MR IID
+- `platform` — optional; "github" or "gitlab". Auto-detected from git remote if omitted.
 
-GitLab requires separate API calls per inline comment (no batched review endpoint). Each needs position SHAs from the MR versions endpoint:
+**Example workflow:**
 
-```python
-# Write this to $TMPDIR/post_review.py via the Write tool
-import json, subprocess, tempfile, os, sys
-
-project_id = "{project_id}"  # or URL-encoded path
-mr_iid = {number}
-
-# Step 1: fetch MR version SHAs
-versions_raw = subprocess.run(
-    ["glab", "api", f"projects/{project_id}/merge_requests/{mr_iid}/versions"],
-    capture_output=True, text=True, check=True,
-).stdout
-versions = json.loads(versions_raw)
-latest = versions[0]
-base_sha = latest["base_commit_sha"]
-head_sha = latest["head_commit_sha"]
-start_sha = latest["start_commit_sha"]
-
-# Step 2: post each inline comment as a discussion
-comments = [
-    {"path": "{file}", "line": {line}, "body": "{comment body}"},
-    # ...
-]
-
-for c in comments:
-    payload = {
-        "body": c["body"],
-        "position": {
-            "position_type": "text",
-            "base_sha": base_sha,
-            "head_sha": head_sha,
-            "start_sha": start_sha,
-            "old_path": c["path"],
-            "new_path": c["path"],
-            "new_line": c["line"],
-        },
+```bash
+# 1. Build findings JSON (Write tool)
+Write(file_path="$TMPDIR/deep-review-findings.json", content={
+  "review_body": "Found 3 issues: 1 critical, 2 medium.",
+  "findings": [
+    {
+      "file": "app.js",
+      "line": 42,
+      "severity": "critical",
+      "title": "SQL injection in query builder",
+      "body": "User input concatenated into SQL without parameterization.",
+      "suggested_fix_code": "const query = db.prepare('SELECT * FROM users WHERE id = ?').get(id);"
     }
-    fd, tmp = tempfile.mkstemp(suffix=".json")
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(payload, f, ensure_ascii=False)
-        result = subprocess.run(
-            ["glab", "api", "--method", "POST",
-             "--header", "Content-Type: application/json",
-             "--input", tmp,
-             f"projects/{project_id}/merge_requests/{mr_iid}/discussions"],
-            capture_output=True, text=True,
-        )
-        if result.returncode != 0:
-            print(f"FAILED for {c['path']}:{c['line']}: {result.stderr}", file=sys.stderr)
-    finally:
-        os.unlink(tmp)
+  ],
+  "owner": "myorg",
+  "repo": "myapp",
+  "pr_number": 42
+})
 
-print(f"Posted {len(comments)} inline comments on MR !{mr_iid}")
+# 2. Run script
+Bash(command="python3 {skill_base}/scripts/post_review.py $TMPDIR/deep-review-findings.json")
 ```
 
-After inline comments, post the executive summary as a top-level PR/MR comment using the same Python pattern.
+**Script behavior:**
+- **GitHub:** Posts a single batched review with inline comments (event: COMMENT), then summary.
+- **GitLab:** Posts a summary note, then per-finding inline discussions with position metadata.
+- **Diff validation:** Parses diff to verify each finding line is in the PR/MR. Skips invalid lines with warning.
+- **Metadata footer:** Appends `deep-review-findings` HTML comment to review_body with version, count, SHA for incremental review support.
 
 ### Findings metadata footer
 
