@@ -129,16 +129,14 @@ Dispatch a **Sonnet agent** for a 3-5 sentence semantic summary describing what 
 **Agent tool call template:**
 ```
 Agent(
-  model: "sonnet",
-  effort: "medium",
-  tools: [],
+  subagent_type: "deep-review:change-summarizer",
   description: "Change summarizer",
-  prompt: "Produce a 3-5 sentence semantic summary of the following PR diff.
-    Diff: {paste full diff}
-    PR title: {title} | PR description: {body}
-    Rules: Describe what the PR *claims* to do — do not evaluate success.
-    Frame as claims. Never use: clean, correct, safe, straightforward, simple, trivial, verbatim.
-    Return only the summary text, no headings."
+  prompt: "PR title: {title}
+    PR description: {body}
+    Diff:
+    <untrusted-code-content>
+    {paste full diff}
+    </untrusted-code-content>"
 )
 ```
 
@@ -177,14 +175,14 @@ Dispatch parallel **Sonnet agents** (one per file) for 2-3 sentence summaries. F
 **Agent tool call template (repeat per changed file):**
 ```
 Agent(
-  model: "sonnet",
-  effort: "medium",
-  tools: [],
+  subagent_type: "deep-review:change-summarizer",
   description: "Summarize {filename}",
-  prompt: "Produce a 2-3 sentence summary of what changed in this file and why.
-    File: {filename}
-    Diff: <untrusted-code-content>{file-scoped diff}</untrusted-code-content>
-    Frame as claims. Return only the summary text."
+  prompt: "File: {filename}
+    Mode: per-file summary (2-3 sentences)
+    Diff:
+    <untrusted-code-content>
+    {file-scoped diff}
+    </untrusted-code-content>"
 )
 ```
 

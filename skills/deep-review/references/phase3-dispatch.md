@@ -6,23 +6,23 @@ Context scoping, agent roster, dispatch template, and failure handling for Phase
 
 ## What Each Agent Receives
 
-1. **Scoped diff** for their domain (see context scoping below)
-2. **Change summary** from Phase 2e (and summary-of-summaries from 2i if available)
-3. **Project context** (CLAUDE.md, REVIEW.md rules)
-4. **Risk classification** per file (including AI-generation status)
-5. **JSON output schema** and **false-positive exclusion list** from `references/false-positive-exclusions.md`
-6. **Instructions to pull additional context** via Read/Grep/LSP as needed
+Each named subagent definition (in `agents/{dimension}.md`) already embeds: agent role, instructions, false-positive exclusion list, confidence calibration rubric, JSON output schema, and tool/effort/model configuration.
 
-Read `references/agent-prompt-template.md` for the full prompt template, including trust boundary delimiters for untrusted code, confidence calibration rubric, and output JSON schema.
+The orchestrator provides only the **dynamic per-review content** in the prompt:
+
+1. **Project context** (CLAUDE.md rules, REVIEW.md rules)
+2. **Change summary** from Phase 2f (and summary-of-summaries from 2j if available)
+3. **Risk classification** per file (from Phase 2e, including AI-generation status)
+4. **Scoped diff** wrapped in `<untrusted-code-content>...</untrusted-code-content>` (scoped per agent — see below)
 
 ---
 
 ## Per-Agent Context Scoping
 
-- **bug-detector**: high + medium risk diffs, test files (2f), history context (2h)
+- **bug-detector**: high + medium risk diffs, test files (2g), history context (2i)
 - **security-reviewer**: **all files** (security bugs lurk anywhere)
 - **cross-file-impact-analyzer**: **all files** + must search entire codebase for callers/implementors of changed public symbols
-- **test-analyzer**: changed production files + test files (2f)
+- **test-analyzer**: changed production files + test files (2g)
 - **conventions-and-intent**: **all files** (needs full scope for convention and intent checking)
 - **type-design-analyzer**: files with new type definitions (only dispatched when new types introduced)
 - **code-simplifier**: **all changed files** (dispatched after Phase 6 filtering — see Phase 6)
@@ -33,44 +33,51 @@ All agents can still **pull** additional context — scoping controls what is pr
 
 ## Agent Roster
 
-**Always-on (5)** — model per agent depends on selected mode (see Phase 2k):
+**Always-on (5)** — default model per agent is defined in each agent's frontmatter; Frontier mode overrides to `opus` at dispatch:
 
-1. **bug-detector** — Logic errors, edge cases, null handling, race conditions, API misuse. Read `agents/bug-detector.md`.
-2. **security-reviewer** — OWASP top 10, injection, auth bypass, data exposure, crypto. Always Opus. Read `agents/security-reviewer.md`.
-3. **cross-file-impact-analyzer** — Caller/dependent tracing, cross-module impact. Read `agents/cross-file-impact-analyzer.md`.
-4. **test-analyzer** — Coverage gaps, test quality, DAMP principles. Read `agents/test-analyzer.md`.
-5. **conventions-and-intent** — CLAUDE.md/REVIEW.md adherence, intent alignment, comment accuracy. Read `agents/conventions-and-intent.md`.
+1. **bug-detector** — Logic errors, edge cases, null handling, race conditions, API misuse. Subagent: `deep-review:bug-detector`.
+2. **security-reviewer** — OWASP top 10, injection, auth bypass, data exposure, crypto. Always Opus. Subagent: `deep-review:security-reviewer`.
+3. **cross-file-impact** — Caller/dependent tracing, cross-module impact. Subagent: `deep-review:cross-file-impact`.
+4. **test-analyzer** — Coverage gaps, test quality, DAMP principles. Subagent: `deep-review:test-analyzer`.
+5. **conventions-and-intent** — CLAUDE.md/REVIEW.md adherence, intent alignment, comment accuracy. Subagent: `deep-review:conventions-and-intent`.
 
 **Conditional (2):**
 
-6. **type-design-analyzer** — Type encapsulation, invariant expression. Only if new types introduced. Read `agents/type-design-analyzer.md`.
-7. **code-simplifier** — Simplification opportunities, dead code. POST-review only, only if no critical/high. Read `agents/code-simplifier.md`.
+6. **type-design-analyzer** — Type encapsulation, invariant expression. Only if new types introduced. Subagent: `deep-review:type-design-analyzer`.
+7. **code-simplifier** — Simplification opportunities, dead code. POST-review only, only if no critical/high. Subagent: `deep-review:code-simplifier`.
 
 ---
 
 ## Agent Tool Call Template
 
-Dispatch all applicable agents in a **single message**. Use this template for each — fill in agent-specific content from the agent's `.md` file and `references/agent-prompt-template.md`:
+Dispatch all applicable agents in a **single message**. Each agent definition already contains its role, instructions, false-positive exclusion list, confidence rubric, output schema, effort, model, and tools. The orchestrator provides **only the dynamic per-review content**:
 
 ```
 Agent(
-  model: "sonnet",  // or "opus" in Frontier mode; security-reviewer always Opus
-  effort: "high",
-  tools: [Read, Grep, Glob, LSP],
+  subagent_type: "deep-review:{dimension}",  // e.g. "deep-review:bug-detector"
   description: "Review: {dimension}",
-  prompt: "{Assemble from references/agent-prompt-template.md:
-    1. Agent role + instructions (from agents/{dimension}.md)
-    2. False-positive exclusion list (from references/false-positive-exclusions.md — paste verbatim)
-    3. Confidence calibration rubric (from references/agent-prompt-template.md — paste verbatim)
-    4. JSON output schema (from references/agent-prompt-template.md — paste verbatim)
-    5. Project context: CLAUDE.md, REVIEW.md rules
-    6. Change summary (from Phase 2e)
-    7. Risk classification per file (from Phase 2d, including AI-generation status)
-    8. Scoped diff wrapped in <untrusted-code-content>...</untrusted-code-content>}"
+  prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
+    Change summary: {from Phase 2f}
+    Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Scoped diff:
+    <untrusted-code-content>
+    {diff scoped per agent — see Per-Agent Context Scoping above}
+    </untrusted-code-content>"
 )
 ```
 
-Read `references/agent-prompt-template.md` for the full prompt structure.
+**Frontier mode:** Override model to `opus` at dispatch by adding `model: "opus"` to the Agent call. Security-reviewer always uses Opus regardless of mode.
+
+```
+Agent(
+  subagent_type: "deep-review:bug-detector",
+  model: "opus",  // Frontier mode override
+  description: "Review: bug-detector",
+  prompt: "..."
+)
+```
+
+The agent definition (in `agents/{dimension}.md`) handles: agent role, instructions, exclusion list, confidence rubric, output schema, effort, and default model. Do not re-assemble these in the prompt — they are already baked into the named subagent.
 
 **Self-verification checkpoint:** Before Phase 4, confirm you emitted Agent tool_use blocks for ALL applicable review agents. If you wrote analysis text instead, stop and spawn the agents now.
 

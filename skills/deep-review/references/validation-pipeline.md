@@ -90,17 +90,18 @@ caller, changed config, new code path), cap at 70 regardless of the anchor above
 **Agent tool call template (per batch):**
 ```
 Agent(
-  model: "sonnet",
-  effort: "medium",
-  tools: [Read, Grep, Glob, LSP],
+  subagent_type: "deep-review:validator",
   description: "Validate batch {N}",
-  prompt: "You are validating review findings. For each, attempt to DISPROVE it.
-    Findings: {paste 3-5 findings with descriptions, evidence, blame tags}
-    Code: <untrusted-code-content>{code from file:line_start-line_end}</untrusted-code-content>
-    {paste confidence rubric from above}
-    Return ONLY JSON: [{\"finding_id\": \"<id>\", \"confidence\": <0-100>, \"justification\": \"<sentence>\"}]"
+  prompt: "Findings:
+    {paste 3-5 findings with IDs, descriptions, evidence, and blame tags (new/surfaced, author, date)}
+    Code:
+    <untrusted-code-content>
+    {code from file:line_start-line_end for each finding in batch}
+    </untrusted-code-content>"
 )
 ```
+
+The validator agent definition already contains the confidence rubric, trust boundary instructions, and output format. The orchestrator provides only the batch of findings and their associated code.
 
 Update each finding's confidence based on the validator's assessment.
 
@@ -188,23 +189,18 @@ See **SKILL.md Phase 7** for the primary instructions, MANDATORY GATE, Agent too
 **Agent tool call template (per finding):**
 ```
 Agent(
+  subagent_type: "deep-review:challenger",
+  model: "opus",  // Frontier mode only; omit in Optimized mode (uses agent default: sonnet)
   description: "Blind challenge: {finding_id}",
-  model: "sonnet",  // or "opus" in Frontier mode
-  effort: "high",
-  tools: [Read, Grep, Glob, LSP],
-  prompt: "The following claim has been made about this code. Analyze whether the code actually contains the described issue.
-    Claim: {finding.title}
+  prompt: "Claim: {finding.title}
     Details: {finding.description}
     <untrusted-code-content file="{finding.file}" lines="{finding.line_start}-{finding.line_end}">
 {actual code content read by orchestrator}
-    </untrusted-code-content>
-    Try to DISPROVE this claim. You also have Read, Grep, Glob, LSP tools to explore surrounding context.
-    Look for: defensive code, framework guarantees, type protections, documented intentional behavior. Is there a code path that triggers this today, or only under hypothetical future changes?
-    Rate how likely the claim is CORRECT:
-    0=definitely wrong, 25=probably wrong, 50=uncertain, 75=probably correct, 100=definitely correct
-    Return ONLY JSON: {\"confidence_claim_is_correct\": <0-100>, \"justification\": \"<paragraph>\"}"
+    </untrusted-code-content>"
 )
 ```
+
+The challenger agent definition already contains the blind challenge instructions, trust boundary rules, rating scale, and output format. The orchestrator provides only the claim (title + description) and the raw code — never original reasoning or evidence.
 
 Do NOT include original reasoning or evidence — only title, description, and raw code.
 
