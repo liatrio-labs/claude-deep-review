@@ -1,12 +1,42 @@
 # Deep Review: Improvement Backlog
 
-Driven by benchmark analysis against the [Code Review Bench](https://github.com/withmartian/code-review-benchmark). Full analysis: `code-review-benchmark/offline/results/claude-sonnet-4-5-20250929/deep-review-improvement-analysis.md`
-
-**Baseline (2026-03-26):** Precision 20.3%, Recall 70.6%, F1 31.6%, Rank #27/39
+> **This backlog is ARCHIVED.** All B1-B8 items were implemented (2026-03-26, commits f1809e8–b8f6a6f).
+> The active roadmap is **[v3 Master Improvement Plan](design/v3-master-improvement-plan.md)** — 29 items driven by v2 benchmark + session transcript analysis + 19 research artifacts.
 
 ---
 
-## B1: Improvement Suggestions Section
+## v1 Benchmark Baseline (2026-03-26)
+
+Driven by benchmark analysis against the [Code Review Bench](https://github.com/withmartian/code-review-benchmark). Full analysis: `code-review-benchmark/offline/results/claude-sonnet-4-5-20250929/deep-review-improvement-analysis.md`
+
+P=20.3%, R=70.6%, F1=31.6%, Rank #27/39 (10 PRs, Frontier mode)
+
+## v2 Benchmark (2026-03-30)
+
+P=25.0%, R=40.0%, F1=30.8% (5 PRs, different set). Details: `docs/temp/v2-refactor.md`
+
+Candidate volume halved (11.9→6.6). Test-coverage FPs cut 90%. But recall dropped from 70.6%→40.0% due to systemic pipeline failure: branch mismatch broke Phases 5+7 in all 5 sessions.
+
+---
+
+## B1-B8: IMPLEMENTED
+
+| Item | Status | Commit |
+|------|--------|--------|
+| B1: Improvement Suggestions section | Done | f1809e8 |
+| B2: Remove Positive Observations | Done | f1809e8 |
+| B3: Remove verdict system | Done | f1809e8 |
+| B4: Phase restructuring (8 phases) | Done | multiple |
+| B5: Triggerability validation | Done | 42d2cd7 |
+| B6: Default cap 8→6 | Done | delivery-guide updates |
+| B7: Summarizer claims framing | Done | phase2-triage updates |
+| B8: Subagent hardening | Done | e9b6424 |
+
+---
+
+## Original B1-B8 Details (for reference)
+
+### B1: Improvement Suggestions Section
 
 **Problem:** Test coverage findings account for 39% of all false positives (37/94). Comment/documentation accuracy findings add another 13% (12/94). These are valid review output but they're a different *kind* of output than "here's a bug." Mixing them into severity-ranked findings dilutes the signal and inflates noise when posted as PR comments. The benchmark never considers "add tests" or "fix this Javadoc" a valid finding.
 
@@ -163,7 +193,6 @@ The summary must never use evaluative language (clean, correct, safe, straightfo
    - All other agents: `model: sonnet` (default for Optimized; orchestrator overrides to opus in Frontier)
 
 4. **Update SECURITY BOUNDARY note** to reference structural tool controls.
-5. **Update agent-prompt-template.md** to document required `tools` field.
 
 **Research basis:** Doc #06 — LSP provides 900x faster symbol resolution; must be in allowlist. Doc #05 — every major AI review tool has been exploited via prompt injection; structural tool restrictions are the strongest defense. Doc #12 — Sonnet-Opus gap compressed to 1.2 points; model defaults in frontmatter simplify routing.
 
