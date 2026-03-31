@@ -131,6 +131,8 @@ Agent(
 
 **Self-verification checkpoint:** After dispatching, confirm you emitted an Agent tool_use block. If you wrote the summary yourself, discard it and spawn the agent now.
 
+**Large PR self-check:** If the PR exceeds 500 lines, confirm you will also dispatch 2j file-level summarization agents. Launch 2f and 2j agents in the same message for parallel execution (see Critical Rule #2).
+
 ---
 
 ## 2g. Related Test Discovery

@@ -205,6 +205,8 @@ The challenger agent definition already contains the blind challenge instruction
 
 Do NOT include original reasoning or evidence — only title, description, and raw code.
 
+**Triggerability bar:** The challenger's prompt must include this line: "Can you construct a specific code path through the current codebase that triggers this? If you cannot, rate confidence below 25."
+
 **Design rationale:**
 - Blind agents see only the claim and the code, never the original reasoning → prevents sycophancy
 - Fresh agents (not the original reviewers) → genuinely independent judgment
