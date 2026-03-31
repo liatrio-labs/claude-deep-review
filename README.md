@@ -154,16 +154,7 @@ claude-deep-review/
 ├── skills/
 │   └── deep-review/
 │       ├── SKILL.md                      # Main orchestration (7 phases)
-│       ├── agents/
-│       │   ├── bug-detector.md           # Correctness + error handling
-│       │   ├── security-reviewer.md      # Security vulnerabilities (always Opus)
-│       │   ├── cross-file-impact-analyzer.md  # Cross-file impact
-│       │   ├── test-analyzer.md          # Test coverage gaps
-│       │   ├── conventions-and-intent.md # Conventions + intent + comments
-│       │   ├── type-design-analyzer.md   # Type design (conditional)
-│       │   └── code-simplifier.md        # Simplification (conditional, post-review)
 │       └── references/
-│           ├── agent-prompt-template.md      # Agent prompt structure + trust boundaries
 │           ├── delivery-guide.md             # PR comments, task creation, dismissed findings
 │           ├── false-positive-exclusions.md  # Unified false positive filter + injection artifacts
 │           ├── fix-task-metadata.md          # FIX task template for task board integration

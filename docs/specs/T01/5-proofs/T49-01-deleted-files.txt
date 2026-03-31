@@ -1,0 +1,27 @@
+Type: file-deletion
+Description: List of deleted old agent files
+Timestamp: 2026-03-30T21:00:00Z
+
+Deleted files from skills/deep-review/agents/:
+1. bug-detector.md
+2. code-simplifier.md
+3. conventions-and-intent.md
+4. cross-file-impact-analyzer.md
+5. security-reviewer.md
+6. test-analyzer.md
+7. type-design-analyzer.md
+
+Deleted file from skills/deep-review/references/:
+1. agent-prompt-template.md
+
+Total files deleted: 8
+
+Verification via git:
+D  skills/deep-review/agents/bug-detector.md
+D  skills/deep-review/agents/code-simplifier.md
+D  skills/deep-review/agents/conventions-and-intent.md
+D  skills/deep-review/agents/cross-file-impact-analyzer.md
+D  skills/deep-review/agents/security-reviewer.md
+D  skills/deep-review/agents/test-analyzer.md
+D  skills/deep-review/agents/type-design-analyzer.md
+D  skills/deep-review/references/agent-prompt-template.md

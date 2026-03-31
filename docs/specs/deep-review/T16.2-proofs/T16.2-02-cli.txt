@@ -1,0 +1,29 @@
+Type: cli
+Description: Structural verification of review-md-practices.md — all required sections present
+Expected: All 16 checks PASS
+Timestamp: 2026-03-30T00:00:00Z
+
+Command: grep/wc content checks on skills/build-review-md/references/review-md-practices.md
+
+Results:
+  Line count: 546                   PASS (non-trivial content)
+  Prescriptive section header: 1    PASS (## Prescriptive vs Directional Rules present)
+  Directional rules mentions: 2     PASS
+  Phased Rollout section: 1         PASS (## Phased Rollout Guidance present)
+  Day one guidance: 1               PASS ("Day one (weeks 1-2): Start narrow" present)
+  Week 4 guidance: 1                PASS ("Week 4: Expand only if acceptance rate supports it" present)
+  Month 3+ guidance: 1              PASS ("Month 3+: Add based on actual incidents" present)
+  Quarterly Audit section: 1        PASS (## Quarterly Audit Checklist present)
+  30% FP threshold: 1               PASS ("Rules below 30% acceptance should be rewritten or removed")
+  Default Thresholds section: 1     PASS (## Default Thresholds for New Repositories present)
+  Confidence 85 mentions: 11        PASS (85 threshold documented in section and all 4 templates)
+  TypeScript/React template: 1      PASS (### TypeScript / React present)
+  Python/Django template: 1         PASS (### Python / Django present)
+  Go template: 1                    PASS (### Go present)
+  Java/Spring template: 1           PASS (### Java / Spring present)
+  Ignore Pattern guidelines: 1      PASS (## Ignore Pattern Guidelines present)
+  Rule length section: 1            PASS (Rule length sweet spot documented)
+
+Overall: 16/16 checks PASS
+
+Status: PASS
