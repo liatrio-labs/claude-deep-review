@@ -6,7 +6,7 @@ Full UX orchestration flow for Phase 8: report delivery, PR comment selection, t
 
 ## Stage 0: Generate Report (Internal)
 
-> **Do NOT output the report to the user here.** Generate internally; delivery stages below use the method(s) selected in Phase 1.
+> **Generate the report internally.** You may output a brief summary to chat, but the full report is delivered per the method(s) selected in Phase 1.
 
 Read `references/report-format.md` for the full template and PR comment format.
 
@@ -41,14 +41,14 @@ AskUserQuestion(
     header: "PR Comments",
     multiSelect: false,
     options: [
-      { label: "Default — top 6 by severity", description: "Post the highest-severity findings as inline comments" },
+      { label: "Default — top {min(6, finding_count)} by severity", description: "Post the highest-severity findings as inline comments" },
       { label: "Let me pick", description: "Walk through each finding and choose" }
     ]
   }]
 )
 ```
 
-- **"Default"** → top 6 main-report findings by severity then confidence. Improvement Suggestions excluded.
+- **"Default"** → top min(6, count) main-report findings by severity then confidence. Improvement Suggestions excluded.
 - **"Let me pick"** → run the **interactive finding walkthrough** (see below). Includes Improvement Suggestions. All selected findings posted — no cap.
 
 Track which findings were selected (**pr_comment_set**) for Stage 2 shortcut.
