@@ -524,37 +524,150 @@ def verify_factual(finding):
 
 def validate_diff_lines(finding, valid_lines):
     """
-    Validate that the finding's reported line is present in the diff.
+    Validate whether the finding's reported line range overlaps with the diff.
 
-    Uses valid_lines set from parse_diff_lines().  A finding that points to
-    a line not in the diff is likely stale or fabricated and should be
-    eliminated.
+    Uses valid_lines set from parse_diff_lines().  Checks each line in
+    [line_start, line_end] for presence in the diff.
 
-    Returns: True if line is in diff (or diff validation is skipped),
-             False if line is definitively absent from the diff.
+    Per V4-10: findings entirely outside the diff are NOT eliminated — they
+    are tagged as "surfaced" (cross-file context, pre-existing code exposed by
+    the change).  This catches the calcom-PR10600 pattern where a finding
+    targeted a line far outside the actual diff.
 
-    Stub: delegates to is_line_in_diff() — already functional.
+    Side effects:
+    - If no diff line in [line_start, line_end] is present in valid_lines,
+      sets finding["origin"] = "surfaced" and
+      finding["diff_validation"] = {"in_diff": False, "reason": "..."}.
+    - If at least one line overlaps, sets
+      finding["diff_validation"] = {"in_diff": True, "reason": "..."}.
+    - If diff validation is skipped (valid_lines is None), sets
+      finding["diff_validation"] = {"in_diff": None, "reason": "skipped"}.
+
+    Returns: always True (findings are kept regardless — origin is updated
+             to reflect whether they are "new" or "surfaced").
     """
+    if valid_lines is None:
+        # Diff validation skipped — leave origin unchanged
+        finding["diff_validation"] = {
+            "in_diff": None,
+            "reason": "diff validation skipped",
+        }
+        return True
+
     filepath = finding.get("file", "")
-    line_start = finding.get("line_start", 0)
-    return is_line_in_diff(valid_lines, filepath, line_start)
+    line_start = finding.get("line_start") or 0
+    line_end = finding.get("line_end") or line_start
+
+    # If no line reference at all, treat as in-diff (nothing to validate)
+    if not line_start:
+        finding["diff_validation"] = {
+            "in_diff": True,
+            "reason": "no line reference — validation skipped",
+        }
+        return True
+
+    # Check if any line in the range appears in the diff
+    for line in range(line_start, line_end + 1):
+        if is_line_in_diff(valid_lines, filepath, line):
+            finding["diff_validation"] = {
+                "in_diff": True,
+                "reason": f"line {line} found in diff",
+            }
+            return True
+
+    # No lines in range found in diff → tag as "surfaced"
+    original_origin = finding.get("origin", "new")
+    finding["origin"] = "surfaced"
+    finding["diff_validation"] = {
+        "in_diff": False,
+        "reason": (
+            f"lines {line_start}-{line_end} of '{filepath}' not found in diff "
+            f"— tagged as surfaced (was: {original_origin})"
+        ),
+    }
+    # Also apply severity downgrade if not already applied (blame may have
+    # already downgraded; blame_metadata tracks original_severity)
+    _SEVERITY_DOWNGRADE = {
+        "critical": "high",
+        "high": "medium",
+        "medium": "low",
+        "low": "low",
+    }
+    blame_meta = finding.get("blame_metadata") or {}
+    # Only downgrade if blame did not already set surfaced (avoid double-downgrade)
+    if blame_meta.get("classification") != "surfaced":
+        original_severity = finding.get("severity", "")
+        if original_severity in _SEVERITY_DOWNGRADE:
+            finding["severity"] = _SEVERITY_DOWNGRADE[original_severity]
+
+    return True
 
 
-def batch_findings(findings, batch_size=10):
+def batch_findings(findings, min_batch=3, max_batch=5):
     """
-    Partition a list of findings into batches for Phase 5 agent dispatch.
+    Group findings into batches of 3-5 for Phase 5 agent dispatch.
 
-    Each batch is a list of findings that can be processed in parallel by a
-    single Phase 5 agent instance.  Batching by file first keeps related
-    findings together and reduces per-agent context load.
+    Grouping strategy (file proximity):
+    1. Sort findings by file path (then by line_start within file) so that
+       findings in the same file or adjacent files end up together.
+    2. Fill batches greedily: keep adding findings from the current file until
+       the batch would exceed max_batch, then start a new batch.
+    3. If a batch would be left with fewer than min_batch items but there are
+       enough findings left to form a full batch, merge remainders into the
+       previous batch (up to max_batch) rather than leaving orphan singletons.
 
-    Returns: list of lists (batches), each containing at most batch_size items.
+    Returns: list of lists of finding IDs, e.g.
+        [["bug-1", "bug-2", "bug-3"], ["perf-1", "perf-2", ...], ...]
 
-    Stub: returns simple sequential batches of batch_size until smarter
-    grouping (by file / by dimension) is implemented.
+    The output is a list of ID-lists so the orchestrator can reference findings
+    by ID without re-embedding full finding objects.
     """
-    # TODO(T02.4): implement file-grouped batching for Phase 5
-    return [findings[i:i + batch_size] for i in range(0, len(findings), batch_size)]
+    if not findings:
+        return []
+
+    # Sort by file, then line_start for stable file-proximity ordering
+    def sort_key(f):
+        return (f.get("file") or "", f.get("line_start") or 0)
+
+    sorted_findings = sorted(findings, key=sort_key)
+
+    batches = []
+    current_batch = []
+    current_file = None
+
+    for idx, f in enumerate(sorted_findings):
+        f_file = f.get("file") or ""
+        f_id = f.get("id") or f.get("finding_id") or str(idx)
+
+        # Start a new batch when:
+        # - current batch has reached max_batch, OR
+        # - we've switched to a different file AND current batch already has
+        #   at least min_batch items (avoids tiny single-file batches)
+        file_changed = (current_file is not None) and (f_file != current_file)
+        batch_full = len(current_batch) >= max_batch
+        batch_has_min = len(current_batch) >= min_batch
+
+        if batch_full or (file_changed and batch_has_min):
+            batches.append(current_batch)
+            current_batch = []
+
+        current_batch.append(f_id)
+        current_file = f_file
+
+    # Flush remaining items
+    if current_batch:
+        if batches and len(current_batch) < min_batch:
+            # Merge tiny tail into previous batch if it still fits within max_batch
+            combined = batches[-1] + current_batch
+            if len(combined) <= max_batch:
+                batches[-1] = combined
+            else:
+                # Too large to merge — keep as separate (possibly small) batch
+                batches.append(current_batch)
+        else:
+            batches.append(current_batch)
+
+    return batches
 
 
 # ---------------------------------------------------------------------------
@@ -638,25 +751,30 @@ def main():
             f["elimination_reason"] = "evidence does not match file content"
             eliminated.append(f)
 
-    # Phase 4: Validate diff lines
+    # Phase 4: Validate diff lines (V4-10)
+    # Findings outside the diff are tagged as "surfaced" (not eliminated) so
+    # that cross-file context findings are preserved for Phase 5 reporting.
     print("Validating finding line numbers against diff...", file=sys.stderr)
     diff_text = get_diff(base_branch, args.diff_file)
     valid_lines = parse_diff_lines(diff_text)
     if valid_lines is None:
         warn("Diff validation skipped — all findings passed through.")
 
-    still_verified = []
+    diff_surfaced_count = 0
     for f in verified:
-        if validate_diff_lines(f, valid_lines):
-            still_verified.append(f)
-        else:
-            f["elimination_reason"] = (
-                f"line {f.get('line_start')} of {f.get('file')} not found in diff"
-            )
-            eliminated.append(f)
-    verified = still_verified
+        origin_before = f.get("origin", "new")
+        validate_diff_lines(f, valid_lines)
+        if f.get("origin") == "surfaced" and origin_before != "surfaced":
+            diff_surfaced_count += 1
 
-    # Phase 5: Batch
+    if diff_surfaced_count:
+        print(
+            f"  Tagged {diff_surfaced_count} finding(s) as surfaced "
+            "(outside diff range).",
+            file=sys.stderr,
+        )
+
+    # Phase 5: Batch (groups of 3-5 by file proximity)
     print(f"Batching {len(verified)} verified finding(s)...", file=sys.stderr)
     batches = batch_findings(verified)
 
