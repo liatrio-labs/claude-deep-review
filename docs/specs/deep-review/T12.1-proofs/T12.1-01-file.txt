@@ -1,0 +1,50 @@
+Type: file
+Command: grep checks on skills/deep-review/references/phase8-delivery.md
+Expected: Summary table template, 4-option AskUserQuestion pattern with description fields, dismissed_set integration in Stage 3
+Timestamp: 2026-03-30T00:00:00Z
+
+--- VERIFICATION: Summary table added before selection ---
+
+Line 143: ### Step 1: Show Summary Table
+Line 145: Before prompting for any selection, output the full findings table grouped by severity:
+Lines 148-154: Example table with columns: # | Severity | Title | Confidence | File
+Line 156: List ALL findings from the main report (including Improvement Suggestions...)
+
+PASS: Summary table present before any selection prompt
+
+--- VERIFICATION: 4-option AskUserQuestion per severity group ---
+
+Lines 165-178: AskUserQuestion with exactly 4 options:
+  Option 1: { label: "Include as PR comment", description: "Post this finding as an inline comment on the PR" }
+  Option 2: { label: "Skip this finding", description: "Remove from delivery, won't be posted" }
+  Option 3: { label: "Include all remaining {Severity}", description: "Auto-include all remaining {severity} findings without prompting" }
+  Option 4: { label: "Done — keep what I've selected", description: "Stop selection and deliver findings chosen so far" }
+
+PASS: Exactly 4 options with description fields
+
+--- VERIFICATION: dismissed_set tracked and used in Stage 3 ---
+
+Line 190: Track skipped findings in **dismissed_set** for Stage 3 integration.
+Line 131: **Only run this stage if dismissed_set is non-empty** — i.e., the user explicitly skipped one or more findings...
+Line 133: Pre-populate the proposed entries list from dismissed_set (the findings the user skipped)...
+
+PASS: dismissed_set populated during walkthrough, consumed by Stage 3
+
+--- VERIFICATION: Severity grouping ---
+
+Line 158: After showing the table, walk through each severity group one finding at a time.
+Line 167: header: "{emoji} {Severity} — finding {M} of {N}",
+Line 188: When all findings in a severity group are exhausted, advance automatically to the next severity group.
+Line 180: Emojis: critical=🔴, high=🟠, medium=🟡, low=💡.
+
+PASS: Severity grouping with correct emoji assignments
+
+--- VERIFICATION: Consistent task board references ---
+
+Line 100: description: "Create a task for each finding I posted as a PR comment (F-01, F-02, ...)"
+Line 116: description: "Use the summary table above to select findings for the task board"
+Line 123: Reference findings by their IDs (F-01, F-02, etc.) when describing which tasks will be created.
+
+PASS: Task board references use consistent finding IDs from summary table
+
+Status: PASS

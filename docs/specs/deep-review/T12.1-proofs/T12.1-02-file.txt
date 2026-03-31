@@ -1,0 +1,54 @@
+Type: file
+Command: wc -l and structure verification of skills/deep-review/references/phase8-delivery.md
+Expected: Interactive Finding Walkthrough section replaced with new 2-step flow; Stage 3 updated with dismissed_set gate
+Timestamp: 2026-03-30T00:00:00Z
+
+--- FILE LINE COUNT ---
+Total lines: 191
+
+--- STRUCTURE VERIFICATION ---
+
+Sections present in file (in order):
+1. Stage 0: Generate Report (Internal) — line 7
+2. Stage 1: Deliver the Report — line 25
+3. Stage 2: Task Board — MANDATORY GATE — line 88
+4. Stage 3: Dismissed Findings — line 129
+5. Interactive Finding Walkthrough — line 139
+   5a. Step 1: Show Summary Table — line 143
+   5b. Step 2: Walk Through Each Severity Group — line 158
+
+--- KEY STRUCTURAL CHANGES FROM PREVIOUS VERSION ---
+
+CHANGED: Stage 2 now references finding IDs (F-01, F-02) and summary table
+  - "Create a task for each finding I posted as a PR comment (F-01, F-02, ...)"
+  - "Use the summary table above to select findings for the task board"
+  - Added: paragraph about using same summary table and referencing IDs
+
+CHANGED: Stage 3 now has dismissed_set gate condition
+  - Old: "After delivery, ask if findings should be suppressed..."
+  - New: "Only run this stage if dismissed_set is non-empty..."
+  - Added: Pre-populate proposed entries from dismissed_set
+
+REPLACED: Interactive Finding Walkthrough section
+  - Old: Single-step walkthrough with 4 options (no descriptions), fifth "Done" option only at severity transitions
+  - New:
+    Step 1: Summary table shown first (before any AskUserQuestion)
+    Step 2: Per-finding AskUserQuestion with exactly 4 options, all with description fields
+    dismissed_set tracking added
+
+--- OPTION DIFF ---
+
+Old options (no descriptions):
+  { label: "Include" }
+  { label: "Don't include" }
+  { label: "Include all {Severity} findings" }
+  { label: "Skip remaining {Severity} findings" }
+  [Fifth option at transitions: "Done — skip everything else"]
+
+New options (with descriptions):
+  { label: "Include as PR comment", description: "Post this finding as an inline comment on the PR" }
+  { label: "Skip this finding", description: "Remove from delivery, won't be posted" }
+  { label: "Include all remaining {Severity}", description: "Auto-include all remaining {severity} findings without prompting" }
+  { label: "Done — keep what I've selected", description: "Stop selection and deliver findings chosen so far" }
+
+Status: PASS

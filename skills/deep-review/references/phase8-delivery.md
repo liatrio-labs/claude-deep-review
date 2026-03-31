@@ -97,8 +97,8 @@ AskUserQuestion(
     header: "Task Board",
     multiSelect: false,
     options: [
-      { label: "Yes — from my PR comments", description: "Create a task for each finding I posted as a PR comment" },
-      { label: "Yes — let me pick from all findings", description: "Walk through the full list and choose" },
+      { label: "Yes — from my PR comments", description: "Create a task for each finding I posted as a PR comment (F-01, F-02, ...)" },
+      { label: "Yes — let me pick from all findings", description: "Walk through the full list using the summary table and choose" },
       { label: "No — done", description: "Finish the review" }
     ]
   }]
@@ -113,12 +113,14 @@ AskUserQuestion(
     header: "Task Board",
     multiSelect: false,
     options: [
-      { label: "Yes — walk me through them", description: "I'll show each finding and you decide" },
+      { label: "Yes — walk me through them", description: "Use the summary table above to select findings for the task board" },
       { label: "No — done", description: "Finish the review" }
     ]
   }]
 )
 ```
+
+When walking through findings for task creation, use the same summary table from the Interactive Finding Walkthrough (already shown to the user). Reference findings by their IDs (F-01, F-02, etc.) when describing which tasks will be created.
 
 Create FIX tasks for all included findings using the task creation flow in `references/delivery-guide.md` (metadata per `references/fix-task-metadata.md`). After creating: "Created N tasks from review findings."
 
@@ -126,7 +128,11 @@ Create FIX tasks for all included findings using the task creation flow in `refe
 
 ## Stage 3: Dismissed Findings
 
-After delivery, ask if findings should be suppressed in future reviews. See `references/delivery-guide.md` for the full dismissed findings flow (AskUserQuestion template, proposed entries preview, REVIEW.md write logic).
+**Only run this stage if dismissed_set is non-empty** — i.e., the user explicitly skipped one or more findings during the Interactive Finding Walkthrough.
+
+If dismissed_set is non-empty, ask whether to suppress those findings in future reviews. Pre-populate the proposed entries list from dismissed_set (the findings the user skipped), so the user does not have to re-identify them.
+
+See `references/delivery-guide.md` for the full dismissed findings flow (AskUserQuestion template, proposed entries preview, REVIEW.md write logic).
 
 ---
 
@@ -134,22 +140,51 @@ After delivery, ask if findings should be suppressed in future reviews. See `ref
 
 Reusable selection pattern for both PR comment selection (Stage 1 Step B) and task board selection (Stage 2).
 
-Walk the user through findings one at a time, grouped by severity (critical first). For each finding:
+### Step 1: Show Summary Table
+
+Before prompting for any selection, output the full findings table grouped by severity:
+
+```
+| # | Severity | Title | Confidence | File |
+|---|----------|-------|------------|------|
+| F-01 | 🔴 Critical | SQL injection in query builder | 94% | src/db.py:42 |
+| F-02 | 🟠 High | Missing auth check on admin endpoint | 88% | src/routes.py:117 |
+| F-03 | 🟡 Medium | Unhandled null in user lookup | 76% | src/users.py:33 |
+| F-04 | 💡 Low | Deprecated API usage | 65% | src/legacy.py:8 |
+```
+
+List ALL findings from the main report (including Improvement Suggestions, which are listed after all bug/security findings). Group rows by severity: Critical first, then High, Medium, Low. Use finding IDs that match the report (e.g. F-01, F-02 or S-01, S-02 for surfaced).
+
+### Step 2: Walk Through Each Severity Group
+
+After showing the table, walk through each severity group one finding at a time.
+
+For each finding, show:
 
 ```
 AskUserQuestion(
   questions: [{
-    question: "{emoji} {id}: {title}\n{file}#{lines} | Confidence: {N}%",
-    header: "{emoji} {Severity} ({M} of {N})",
+    question: "{emoji} {id}: {title}\n{file}:{lines} | Confidence: {N}%\n\n{one-sentence description}",
+    header: "{emoji} {Severity} — finding {M} of {N}",
     multiSelect: false,
     options: [
-      { label: "Include" },
-      { label: "Don't include" },
-      { label: "Include all {Severity} findings" },
-      { label: "Skip remaining {Severity} findings" }
+      { label: "Include as PR comment", description: "Post this finding as an inline comment on the PR" },
+      { label: "Skip this finding", description: "Remove from delivery, won't be posted" },
+      { label: "Include all remaining {Severity}", description: "Auto-include all remaining {severity} findings without prompting" },
+      { label: "Done — keep what I've selected", description: "Stop selection and deliver findings chosen so far" }
     ]
   }]
 )
 ```
 
-Emojis: critical=🔴, high=🟠, medium=🟡, low=💡. Bulk options apply to current severity group then advance to next. When transitioning to a new severity group, add a fifth option: **"Done — skip everything else"** for early exit.
+Emojis: critical=🔴, high=🟠, medium=🟡, low=💡.
+
+**Option behavior:**
+- **"Include as PR comment"** — add to selection set, advance to next finding
+- **"Skip this finding"** — exclude from selection set, add to dismissed_set, advance to next finding
+- **"Include all remaining {Severity}"** — auto-include all unreviewed findings in the current severity group, then advance to the next severity group
+- **"Done — keep what I've selected"** — stop walkthrough immediately; deliver findings chosen so far
+
+When all findings in a severity group are exhausted, advance automatically to the next severity group. When all severity groups are done, end the walkthrough.
+
+Track skipped findings in **dismissed_set** for Stage 3 integration.
