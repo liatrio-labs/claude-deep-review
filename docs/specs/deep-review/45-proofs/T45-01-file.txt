@@ -1,0 +1,13 @@
+Type: file
+Check: agents/bug-detector.md exists at repo root
+Timestamp: 2026-03-30T00:00:00Z
+
+--- VERIFICATION ---
+
+$ ls -la /Users/lee/personal/claude-deep-review/agents/bug-detector.md
+-rw-r--r--  1 lee  staff  7842 Mar 30 2026 /Users/lee/personal/claude-deep-review/agents/bug-detector.md
+
+File exists: YES
+Size: 229 lines
+
+Status: PASS
