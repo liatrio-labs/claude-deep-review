@@ -1,0 +1,66 @@
+Type: file
+Description: Verify all 6 migrated agent files exist at agents/ plugin root with correct frontmatter
+Expected: 6 new agent files present with tools, effort, model fields set correctly
+Timestamp: 2026-03-30T00:00:00Z
+
+--- COMMAND ---
+ls agents/ (from repo root)
+
+--- OUTPUT ---
+bug-detector.md
+challenger.md
+change-summarizer.md
+code-simplifier.md
+conventions-and-intent.md
+cross-file-impact.md
+security-reviewer.md
+test-analyzer.md
+type-design-analyzer.md
+validator.md
+
+--- FRONTMATTER CHECK ---
+security-reviewer.md:
+  name: security-reviewer
+  tools: Read, Grep, Glob
+  effort: high
+  model: opus     (CORRECT — opus per task spec)
+  color: red
+
+cross-file-impact.md:
+  name: cross-file-impact
+  tools: Read, Grep, Glob
+  effort: high
+  model: sonnet
+  color: orange
+
+test-analyzer.md:
+  name: test-analyzer
+  tools: Read, Grep, Glob
+  effort: high
+  model: sonnet
+  color: cyan
+
+conventions-and-intent.md:
+  name: conventions-and-intent
+  tools: Read, Grep, Glob
+  effort: high
+  model: sonnet
+  color: blue
+
+type-design-analyzer.md:
+  name: type-design-analyzer
+  tools: Read, Grep, Glob
+  effort: high
+  model: sonnet
+  color: pink
+
+code-simplifier.md:
+  name: code-simplifier
+  tools: Read, Grep, Glob
+  effort: high
+  model: sonnet
+  color: blue
+
+--- STATUS: PASS ---
+All 6 files present. security-reviewer uses opus (correct). All others use sonnet.
+All 6 have tools: Read, Grep, Glob and effort: high.
