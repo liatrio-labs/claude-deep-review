@@ -1,0 +1,26 @@
+Type: file
+File: skills/deep-review/references/validation-pipeline.md
+Section: Phase 7 (Blind Challenge supplementary detail)
+Timestamp: 2026-03-30T22:55:00Z
+Expected: Explicit prohibition on reasoning hints in challenge prompts
+Status: PASS
+
+Verification:
+- Extended the existing "Do NOT include original reasoning or evidence" instruction
+  in Phase 7 to explicitly prohibit "Consider:" hints, counter-arguments, and any
+  reasoning about the finding
+- Added explanation: "these anchor challengers toward specific conclusions and defeat
+  the blind challenge design"
+- Reinforces that challenge prompts must contain ONLY title, description, and raw code
+  in untrusted-code-content tags
+- Addresses evidence from keycloak bug-3 where the challenge prompt included
+  "Consider: 1. Could this be intentional? 2. Is the user already authenticated?
+  3. Is this a common pattern?" which anchored the challenger toward dismissal
+
+Diff:
+- Do NOT include original reasoning or evidence — only title, description, and raw code.
++ Do NOT include original reasoning or evidence — only title, description, and raw code.
++ Include ONLY: title, description, and raw code in <untrusted-code-content> tags.
++ Do NOT include "Consider:" hints, counter-arguments, or any reasoning about the
++ finding — these anchor challengers toward specific conclusions and defeat the blind
++ challenge design.

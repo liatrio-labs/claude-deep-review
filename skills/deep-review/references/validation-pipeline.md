@@ -211,7 +211,7 @@ Agent(
 
 The challenger agent definition already contains the blind challenge instructions, trust boundary rules, rating scale, and output format. The orchestrator provides only the claim (title + description) and the raw code — never original reasoning or evidence.
 
-Do NOT include original reasoning or evidence — only title, description, and raw code.
+Do NOT include original reasoning or evidence — only title, description, and raw code. Include ONLY: title, description, and raw code in `<untrusted-code-content>` tags. Do NOT include "Consider:" hints, counter-arguments, or any reasoning about the finding — these anchor challengers toward specific conclusions and defeat the blind challenge design.
 
 **Triggerability bar:** The challenger's prompt must include this line: "Can you construct a specific code path through the current codebase that triggers this? If you cannot, rate confidence below 25."
 
