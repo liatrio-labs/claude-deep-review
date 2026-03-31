@@ -1,10 +1,6 @@
-Type: file
-Check: Agent tool call template section added to Phase 7 in validation-pipeline.md
-Command: grep -n "Agent tool call template (per finding)" skills/deep-review/references/validation-pipeline.md
-Expected: Line 188 "**Agent tool call template (per finding):**" in Phase 7 section
-Timestamp: 2026-03-30T00:00:00Z
-
-Result:
-188:**Agent tool call template (per finding):**
-
-Status: PASS
+SUPERSEDED
+This file was created by a prior incorrect task assignment and does not belong to T02.2.
+The correct proof artifacts for T02.2 (implement classify_blame()) are:
+  T02.2-01-cli.txt         -- import test
+  T02.2-02-functional.txt  -- functional tests
+  T02.2-proofs.md          -- summary

@@ -187,12 +187,159 @@ def classify_blame(finding, base_branch):
     "surfaced"  — the finding's lines predate the current branch
                   (blame shows a commit also reachable from base_branch)
 
-    Returns: "new" | "surfaced"
+    Side effects:
+    - Sets finding["blame_metadata"] with classification, author, date, and
+      original_severity.
+    - Downgrades finding["severity"] by one level for "surfaced" findings:
+      critical→high, high→medium, medium→low, low stays low.
 
-    Stub: always returns "new" until full blame logic is implemented.
+    Returns: "new" | "surfaced"
     """
-    # TODO(T02.2): implement git blame comparison against base_branch
-    return "new"
+    _SEVERITY_DOWNGRADE = {
+        "critical": "high",
+        "high": "medium",
+        "medium": "low",
+        "low": "low",
+    }
+
+    filepath = finding.get("file", "")
+    line_start = finding.get("line_start", 1)
+    line_end = finding.get("line_end") or line_start
+    original_severity = finding.get("severity", "")
+    cross_file_refs = finding.get("cross_file_refs") or []
+
+    # Cross-file impact findings (about code outside the diff) → always "surfaced"
+    if cross_file_refs:
+        classification = "surfaced"
+        finding["blame_metadata"] = {
+            "classification": classification,
+            "author": None,
+            "date": None,
+            "original_severity": original_severity,
+        }
+        if original_severity in _SEVERITY_DOWNGRADE:
+            finding["severity"] = _SEVERITY_DOWNGRADE[original_severity]
+        return classification
+
+    # File not found on disk → skip (return "new" to keep finding, conservative)
+    if not os.path.exists(filepath):
+        warn(
+            f"classify_blame: file not found '{filepath}' — classifying as 'new' (conservative)."
+        )
+        finding["blame_metadata"] = {
+            "classification": "new",
+            "author": None,
+            "date": None,
+            "original_severity": original_severity,
+        }
+        return "new"
+
+    # Obtain the set of commits reachable from HEAD but not base_branch (i.e. PR commits)
+    pr_stdout, pr_stderr, pr_rc = run(
+        ["git", "log", "--format=%H", f"{base_branch}..HEAD"]
+    )
+    if pr_rc != 0:
+        warn(
+            f"classify_blame: git log failed for base '{base_branch}': {pr_stderr.strip()}"
+            " — classifying as 'new' (conservative)."
+        )
+        finding["blame_metadata"] = {
+            "classification": "new",
+            "author": None,
+            "date": None,
+            "original_severity": original_severity,
+        }
+        return "new"
+
+    pr_commits = set(pr_stdout.strip().splitlines())
+
+    # Run git blame on the finding's line range
+    blame_cmd = ["git", "blame", f"-L{line_start},{line_end}", "--", filepath]
+    blame_stdout, blame_stderr, blame_rc = run(blame_cmd)
+
+    if blame_rc != 0:
+        err_lower = blame_stderr.lower()
+        # Binary files produce a specific error from git blame
+        if "binary" in err_lower:
+            warn(
+                f"classify_blame: binary file '{filepath}' — classifying as 'new' (conservative)."
+            )
+        else:
+            warn(
+                f"classify_blame: git blame failed for '{filepath}': {blame_stderr.strip()}"
+                " — classifying as 'new' (conservative)."
+            )
+        finding["blame_metadata"] = {
+            "classification": "new",
+            "author": None,
+            "date": None,
+            "original_severity": original_severity,
+        }
+        return "new"
+
+    # Parse blame output lines.
+    # Standard porcelain format (short): "^SHA (Author Date HH:MM:SS +TZ LINE) code"
+    # Short format: "SHA (Author YYYY-MM-DD HH:MM:SS +TZ LINE) code"
+    blame_sha_re = re.compile(r"^\^?([0-9a-f]{7,40})\s+\((.+?)\s+(\d{4}-\d{2}-\d{2})")
+
+    blamed_shas = set()
+    first_author = None
+    first_date = None
+
+    for line in blame_stdout.splitlines():
+        m = blame_sha_re.match(line)
+        if not m:
+            continue
+        sha_prefix = m.group(1)
+        author = m.group(2).strip()
+        date = m.group(3)
+        blamed_shas.add(sha_prefix)
+        if first_author is None:
+            first_author = author
+            first_date = date
+
+    if not blamed_shas:
+        # Could not parse any blame output — conservative
+        warn(
+            f"classify_blame: could not parse blame output for '{filepath}' lines "
+            f"{line_start}-{line_end} — classifying as 'new' (conservative)."
+        )
+        finding["blame_metadata"] = {
+            "classification": "new",
+            "author": None,
+            "date": None,
+            "original_severity": original_severity,
+        }
+        return "new"
+
+    # A blamed SHA may be a short prefix; check if any blamed commit is a PR commit.
+    # PR commits are full SHAs; blamed SHAs may be short (7+ chars).
+    def sha_in_pr(short_sha, pr_set):
+        for full_sha in pr_set:
+            if full_sha.startswith(short_sha) or short_sha.startswith(full_sha):
+                return True
+        return False
+
+    has_pr_commit = any(sha_in_pr(s, pr_commits) for s in blamed_shas)
+
+    # "new" if any blamed commit is in the PR branch; otherwise "surfaced"
+    if has_pr_commit:
+        classification = "new"
+    else:
+        classification = "surfaced"
+
+    finding["blame_metadata"] = {
+        "classification": classification,
+        "author": first_author,
+        "date": first_date,
+        "original_severity": original_severity,
+    }
+
+    # Downgrade severity for surfaced findings
+    if classification == "surfaced" and original_severity in _SEVERITY_DOWNGRADE:
+        finding["severity"] = _SEVERITY_DOWNGRADE[original_severity]
+
+    return classification
 
 
 def verify_factual(finding):
