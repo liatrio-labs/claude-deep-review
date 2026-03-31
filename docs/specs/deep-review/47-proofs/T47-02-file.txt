@@ -1,0 +1,26 @@
+Type: file
+Description: Verify agents/validator.md exists with correct frontmatter and content
+Expected: File exists with name, tools: Read Grep Glob, effort: medium, model: sonnet; body includes confidence rubric and JSON output schema
+Timestamp: 2026-03-30T00:00:00Z
+
+--- Output ---
+File: /Users/lee/personal/claude-deep-review/agents/validator.md
+
+Frontmatter:
+  name: validator
+  description: Validates review findings by attempting to disprove them
+  tools: Read, Grep, Glob
+  effort: medium
+  model: sonnet
+  color: yellow
+
+Body sections:
+  - "Your job: attempt to disprove each finding" (read code, disprove, reachability, tools, rubric)
+  - Confidence Rubric (0/25/50/75/100 anchors with hypothetical-future-change cap at 70)
+  - "What you receive" (batch of 3-5 findings with blame tags)
+  - "Trust boundaries" (untrusted-code-content)
+  - "Output format" (JSON array: finding_id, confidence, justification)
+
+Rubric cap-at-70 rule: present — "If the only path to this issue requires a hypothetical future change (new caller, changed config, new code path), cap at 70"
+
+Status: PASS
