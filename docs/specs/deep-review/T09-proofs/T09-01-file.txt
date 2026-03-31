@@ -1,0 +1,21 @@
+Type: file
+File: skills/deep-review/references/validation-pipeline.md
+Section: Phase 7 (Blind Challenge supplementary detail)
+Timestamp: 2026-03-30T22:50:00Z
+Expected: Challenge coverage self-check added to Phase 7
+Status: PASS
+
+Verification:
+- Added one-sentence self-check at end of blind challenge section: "Count surviving
+  findings from Phase 6 and count challenge agents dispatched. These numbers must match."
+- Includes remediation: "If any finding was not challenged, dispatch its challenger now
+  before proceeding to post-challenge finalization."
+- Same pattern as existing Phase 3/5 self-checks in SKILL.md (lines 106 and 165)
+- Addresses evidence from sentry-greptile benchmark: only 7 of 14 surviving findings
+  were challenged, and the 7 unchallenged findings included 5 referencing non-existent code.
+
+Diff:
++ **Challenge coverage self-check:** After dispatching all challengers, count surviving
++ findings from Phase 6 and count challenge agents dispatched. These numbers must match.
++ If any finding was not challenged, dispatch its challenger now before proceeding to
++ post-challenge finalization.
