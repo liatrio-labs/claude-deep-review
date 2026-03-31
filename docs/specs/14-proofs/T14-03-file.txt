@@ -1,0 +1,22 @@
+Type: file
+File: skills/deep-review/references/review-md-spec.md
+Command: grep -n for all 5 improvement markers
+Timestamp: 2026-03-30T00:00:00Z
+Expected: All 5 improvements present in review-md-spec.md
+
+--- Output ---
+Line 93: "Never skip test files" warning in Skip section
+Line 165: "Date-stamp ignore patterns" guidance in Ignore section
+Line 174: "Soft cap: 10-15 ignore patterns per file" in Ignore section
+Line 185: "Placement decision test" in Hierarchy section
+Line 271: "~50 rules across all REVIEW.md files combined" in principle #1
+Line 276: "commonly violated rules last" in principle #6
+
+All 5 required improvements verified present:
+1. Subdirectory placement decision test (line 185) -- PASS
+2. Peripheral bias expanded to include commonly violated rules last (line 276) -- PASS
+3. Cross-file rule ceiling ~50 total (line 271) -- PASS
+4. Never skip test files warning (line 93) -- PASS
+5. Date-stamped ignore patterns + soft cap 10-15 (lines 165, 174) -- PASS
+
+Status: PASS

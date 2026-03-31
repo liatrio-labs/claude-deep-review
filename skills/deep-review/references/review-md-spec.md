@@ -90,6 +90,8 @@ Glob patterns for files to exclude from review. Common uses:
 - Migration files that are auto-generated
 - Large data files
 
+**Never skip test files.** This is the most common skip pattern mistake. Tests need review for coverage gaps, incorrect assertions, and missing edge cases — but with different emphasis than production code. If test files generate too much noise, add focused rules for test directories rather than skipping them entirely. Overly broad patterns like `**/test*/**` are especially dangerous because they can match production code in directories like `testing-utils/`.
+
 ### Rules
 
 Custom natural-language rules that all review agents should check in addition to their built-in logic. These are especially useful for project-specific conventions that aren't captured in CLAUDE.md.
@@ -160,6 +162,17 @@ Patterns for suppressing known false positives. Format is `dimension:"pattern"` 
 
 This is useful when a project has intentional patterns that agents consistently flag incorrectly.
 
+**Date-stamp ignore patterns** for long-term maintenance. Add a comment with the date and reason above each pattern so quarterly audits can identify stale suppressions:
+```
+## Ignore
+# 2026-03-25: EF Core migrations are generated, naming conventions don't apply
+conventions:"file naming" for migration files
+# 2026-03-25: Test helpers intentionally use nullable without guards
+types:"nullable reference" for test assertion helpers
+```
+
+**Soft cap: 10-15 ignore patterns per file.** If you exceed this, it signals either rules that are too sensitive (remove or rewrite them) or a systematic mismatch between your rules and your codebase. Proliferating ignore patterns erodes trust in the review system — when engineers start ignoring entire categories of findings, the tool becomes actively harmful.
+
 ## Hierarchy
 
 REVIEW.md files mirror CLAUDE.md locations. A repository can have:
@@ -168,6 +181,8 @@ REVIEW.md files mirror CLAUDE.md locations. A repository can have:
 - **Subdirectory** `REVIEW.md` files in any directory that also has a `CLAUDE.md` (applies to files in that directory tree)
 
 Subdirectory REVIEW.md files are optional — they're only needed when different parts of the codebase need different review standards (e.g., stricter security rules for an API directory, different thresholds for a legacy module).
+
+**Placement decision test:** before adding a rule to a subdirectory REVIEW.md, ask "would this rule generate false positives in the other stack?" If yes, it belongs in the subdirectory. If the rule applies cleanly everywhere, it belongs in root. Example: "Never use `async void`" is meaningless in a React frontend — it goes in `backend/REVIEW.md`. "Validate all user input" applies everywhere — it goes in root.
 
 ### Inheritance model
 
@@ -253,12 +268,12 @@ Find all CLAUDE.md locations, check each for a matching REVIEW.md:
 
 When helping users add rules to REVIEW.md (during scaffolding or when updating), follow these principles drawn from research on AI reviewer effectiveness:
 
-1. **15-25 rules per file.** Beyond this, LLM adherence degrades for ALL rules, not just new ones. The review system's own prompts consume ~50 instruction slots; each rule competes for the remaining capacity.
+1. **15-25 rules per file, ~50 rules across all REVIEW.md files combined.** Beyond these limits, LLM adherence degrades for ALL rules, not just new ones. The review system's own prompts consume ~50 instruction slots; each rule competes for the remaining capacity. With a root + two subdirectory files (e.g., backend + frontend), budget roughly 15-20 for root and 10-15 per subdirectory.
 2. **Prescriptive for security/correctness, directional for design.** "All async methods MUST accept CancellationToken" (binary pass/fail) vs "Prefer immutable types where practical" (allows edge cases). Prescriptive rules produce low false-positive rates; directional rules handle nuance.
 3. **Always include rationale.** "Never force push" is a flat instruction. "Never force push — this rewrites shared history and is unrecoverable for collaborators" helps the reviewer generalize to related scenarios (like `git reset --hard` on shared branches).
 4. **Specific and verifiable.** Each rule should have a binary pass/fail condition. "Write clean code" is unverifiable. "All public API endpoints must validate request body schema before processing" is verifiable.
 5. **Never duplicate linters.** If ESLint, mypy, tsc, clippy, or any deterministic tool catches it, don't make it a review rule. Deterministic tools are faster, cheaper, and more reliable for objective checks.
-6. **Place critical rules first.** LLMs exhibit peripheral bias — they attend more strongly to instructions at the beginning and end of the prompt. Put security and correctness rules first.
+6. **Place critical rules first, commonly violated rules last.** LLMs exhibit peripheral bias — they attend more strongly to instructions at the beginning and end of the prompt. Put security and correctness rules first (highest stakes), and place the rules your team violates most frequently last (highest recall value). The middle of the list gets the least attention, so put stable, well-understood conventions there.
 7. **Use severity prefixes sparingly.** `CRITICAL:` for rules that are never acceptable to violate (3-4 per file max). Overuse makes the emphasis invisible.
 
 **Effective rules:**
