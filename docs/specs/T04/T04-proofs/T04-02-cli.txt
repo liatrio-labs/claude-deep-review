@@ -1,0 +1,12 @@
+Type: cli
+Command: grep -c 'Fall back to Grep' agents/bug-detector.md agents/security-reviewer.md agents/cross-file-impact.md agents/type-design-analyzer.md
+Expected: each file shows count >= 1
+Timestamp: 2026-03-31T00:00:00Z
+
+OUTPUT:
+agents/bug-detector.md:1
+agents/security-reviewer.md:1
+agents/cross-file-impact.md:1
+agents/type-design-analyzer.md:1
+
+Status: PASS

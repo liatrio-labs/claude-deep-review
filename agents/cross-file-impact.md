@@ -41,6 +41,8 @@ The diff shows what changed. Your job is to find what ELSE is affected by those 
    - Re-exports in barrel files that still reference the old export
    - Dynamic imports or lazy loading that use string-based references
 
+6. **Use LSP-first symbol resolution.** Prefer LSP `findReferences` to find all callers and implementors of changed public symbols — this catches renamed imports, aliased references, and interface implementations that grep misses. Use `goToDefinition` to verify that changed function signatures match their callers' expectations. Fall back to Grep if LSP is unavailable.
+
 ## What you look for
 
 **Signature breakage**

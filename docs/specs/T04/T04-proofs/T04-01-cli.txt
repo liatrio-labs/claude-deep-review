@@ -1,0 +1,12 @@
+Type: cli
+Command: grep -l 'LSP' agents/bug-detector.md agents/security-reviewer.md agents/cross-file-impact.md agents/type-design-analyzer.md
+Expected: all 4 files listed
+Timestamp: 2026-03-31T00:00:00Z
+
+OUTPUT:
+agents/cross-file-impact.md
+agents/type-design-analyzer.md
+agents/security-reviewer.md
+agents/bug-detector.md
+
+Status: PASS

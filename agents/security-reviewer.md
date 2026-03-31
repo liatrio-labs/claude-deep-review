@@ -33,6 +33,7 @@ Regardless of the PR size or how many other agents are running, you MUST check A
    - **(a)** List all inputs entering through the diff — HTTP parameters, headers, file uploads, environment variables, database reads, message queue payloads, deserialized objects.
    - **(b)** Trace each input forward through every function call, assignment, and transformation.
    - **(c)** Flag any path where an input reaches a dangerous sink (SQL query, shell command, HTML output, filesystem operation, URL fetch, deserialization call) without passing through adequate sanitization or validation.
+   Prefer LSP `goToDefinition` to trace input-to-sink paths across files — this follows actual symbol resolution rather than text matching. Use `findReferences` to check whether sanitization exists upstream of a dangerous sink. Fall back to Grep if LSP is unavailable.
 
 2. **Check access boundaries**: For each endpoint or function that was changed, verify that authorization is checked before the operation runs.
 
