@@ -1,0 +1,24 @@
+Type: file
+File: skills/deep-review/references/validation-pipeline.md
+Section: Phase 6d (Tag findings)
+Timestamp: 2026-03-30T22:30:00Z
+Expected: Promotion rule added to Phase 6d for test-analyzer functional bugs
+Status: PASS
+
+Verification:
+- Phase 6d previously tagged all test-analyzer findings as "Improvement Suggestions"
+- Added promotion rule: test-analyzer findings describing functional correctness issues
+  (race conditions, logic errors, assertions that never fail, tests that always pass)
+  are promoted to "Main report" instead of "Improvement Suggestions"
+- Decision test documented: "Does this finding describe a bug that exists today, or a
+  test that should be written?" Bug today -> main report. Test to write -> improvement suggestion.
+- Addresses evidence from keycloak benchmark: Finding C (test race condition) was incorrectly
+  tagged as improvement suggestion and skipped at Medium severity.
+
+Diff:
++ - **Promotion rule:** If a test-analyzer finding describes a functional correctness issue
++   that exists today (race condition, logic error, assertion that never fails, test that
++   always passes) rather than a missing-coverage gap ("should add tests for X"), promote
++   it to **Main report** instead of Improvement Suggestions. Decision test: "Does this
++   finding describe a bug that exists today, or a test that should be written?" Bug today
++   -> main report. Test to write -> improvement suggestion.

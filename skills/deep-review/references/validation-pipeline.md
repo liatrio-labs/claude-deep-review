@@ -163,6 +163,7 @@ Log all contradictions and resolutions in the report methodology section.
 Tag each surviving finding by its eventual report destination. This is a tagging step only — actual separation into report sections happens during post-challenge finalization (Phase 7, step 2):
 - **Main report** — most findings, grouped by severity
 - **Improvement Suggestions** — test-analyzer, conventions-and-intent comment accuracy, and code-simplifier findings
+- **Promotion rule:** If a test-analyzer finding describes a functional correctness issue that exists today (race condition, logic error, assertion that never fails, test that always passes) rather than a missing-coverage gap ("should add tests for X"), promote it to **Main report** instead of Improvement Suggestions. Decision test: "Does this finding describe a bug that exists today, or a test that should be written?" Bug today -> main report. Test to write -> improvement suggestion.
 - **Dedup rule:** If a test-analyzer finding overlaps with another agent's finding at the same file and line range, the non-test-analyzer finding wins — keep it in the main report and drop the test-analyzer duplicate.
 
 ---
