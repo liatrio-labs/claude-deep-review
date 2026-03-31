@@ -63,15 +63,20 @@ Read `references/phase3-dispatch.md` for context scoping, agent roster, and disp
 
 > **STOP: You MUST execute Phases 4-6 before Phase 7 (Blind Challenge).** The validation pipeline keeps false positives under 1%. Read `references/validation-pipeline.md` NOW for detailed implementation.
 
-**Announce each step individually as you execute it — not as a batch summary after the fact.**
+Phase 4 is deterministic — main orchestrator, no LLM agents. It classifies each finding as "new" (introduced by this PR) or "surfaced" (pre-existing code exposed by the change), verifies that evidence matches actual file content, validates line references against the diff, and groups surviving findings into batches for Phase 5 validators.
 
-Phase 4 is deterministic — main orchestrator, no LLM agents:
+Run `scripts/verify_findings.py` with the Phase 3 findings JSON. The script handles blame classification, factual verification, diff-line validation, and batching deterministically.
 
-**4a. Blame classification** — Use git blame to classify each finding as "New" (in this PR) or "Surfaced" (pre-existing). Downgrade surfaced findings one severity level. Record blame tags (new/surfaced, author, date) for Phase 5 validators.
+```
+python3 {plugin_base}/scripts/verify_findings.py findings.json \
+  --base-branch {base_branch}
+```
 
-**4b. Factual verification** — Read the exact code at `file:line_start-line_end` to confirm it matches the finding's claims. Use LSP (preferred, ~50ms) with fallback to Grep to verify referenced symbols actually exist. If ANY factual claim is wrong, set confidence to 0 immediately. Deterministic grounding beats LLM-on-LLM verification (frontier models share correlated errors ~60%).
+Input: merged Phase 3 agent output as a JSON object with a `"findings"` array plus `base_branch`, `head_sha`, `pr_number`, `owner`, and `repo` fields.
 
-**4c. Batch for validation** — Group surviving findings (confidence > 0) into batches of 3-5 by file proximity. Each batch includes: findings, relevant code sections, and blame tags from 4a. These batches are input to Phase 5.
+Output: `{ "verified": [...], "eliminated": [...], "batches": [[id, ...], ...], "stats": { "total", "new", "surfaced", "eliminated" } }`. Each verified finding gains `"origin"` (`"new"` or `"surfaced"`), `"blame_metadata"`, and `"factual_verification"` fields.
+
+**Announce Phase 4 results:** N findings verified, M eliminated, K batched for validation.
 
 ---
 
@@ -81,9 +86,9 @@ Phase 4 is deterministic — main orchestrator, no LLM agents:
 
 Parallel validation agents assess findings needing LLM judgment. **Always use Sonnet** — even in Frontier mode.
 
-**Scope:** Findings with confidence <90 that passed Phase 4b. Findings with confidence >=90 skip validation (already factually verified with exact trigger path).
+**Scope:** Findings with confidence <90 from the `verify_findings.py` output. Findings with confidence >=90 skip validation (already factually verified with exact trigger path).
 
-**Dispatch:** One Sonnet agent per batch from Phase 4c. Launch all in a single message.
+**Dispatch:** One Sonnet agent per batch from the `verify_findings.py` `"batches"` output. Launch all in a single message.
 
 **Validation agents CAN and SHOULD pull surrounding context** via Read/Grep to check for defensive patterns, framework guarantees, or type protections. Unlike Phase 7 challengers who are intentionally blind, validators need full codebase access to assess whether findings are real.
 
@@ -111,22 +116,22 @@ Update each finding's confidence based on the validator's assessment.
 
 ## Phase 6: Filter & Reconcile
 
-Main orchestrator, rules-based — no LLM agents. Apply filters and tag findings for routing.
+Main orchestrator, rules-based — no LLM agents. Apply threshold filtering, injection detection, disagreement resolution, and route-tagging to the Phase 5 output findings.
 
-**6a. Threshold filter** — Remove findings below dimension-specific thresholds. Use REVIEW.md `confidence_threshold` if set (default: 80); security minimum of 70 applies regardless. Apply REVIEW.md `severity_threshold` if set (default: low). See `references/validation-pipeline.md` Phase 6a for the complete filter list (linter-catchable, pedantic, intentional changes, lint-suppressed, etc.).
+Run `scripts/filter_findings.py` with the Phase 5 output. The script handles threshold filtering, injection detection, disagreement resolution, and tagging.
 
-**6b. Injection filter** — Discard findings with prompt injection artifacts.
+```
+python3 {plugin_base}/scripts/filter_findings.py phase5_output.json \
+  --review-md {repo_root}/REVIEW.md
+```
 
-**6c. Disagreement detection** — Boost consensus findings (+10), pass through singletons. Security wins ties. All surviving findings proceed to Phase 7 challenge.
+Input: Phase 5 validated findings JSON (object with a `"findings"` array, or raw array). Optionally pass `--review-md` to apply repo-specific `confidence_threshold`, `severity_threshold`, and `ignore` patterns.
 
-**6d. Tag findings** — Classify each surviving finding by its eventual report destination. This is a tagging step only — actual separation happens during post-challenge finalization (Phase 7).
-- **Tag: main report** — bug-detector, security-reviewer, cross-file-impact-analyzer, conventions-and-intent (intent/convention checks only), type-design-analyzer.
-- **Tag: improvement suggestion** — test-analyzer, conventions-and-intent comment accuracy pass (pass 3), code-simplifier.
-- **Dedup rule:** If a test-analyzer finding overlaps with another agent's finding at the same file/line range, the non-test-analyzer finding wins — retag as main report and drop the duplicate.
+Output: `{ "filtered": [...], "eliminated": [...], "stats": { ... } }`. Each filtered finding gains a `"report_destination"` field (`"main"` or `"suggestion"`) for Phase 8 routing. Tagging logic: bug-detector, security-reviewer, cross-file-impact-analyzer, conventions-and-intent (intent checks), and type-design-analyzer findings → `"main"`; test-analyzer, conventions-and-intent comment accuracy pass, and code-simplifier findings → `"suggestion"`. If a test-analyzer finding overlaps with another agent's finding at the same file/line range, the non-test-analyzer finding wins and the duplicate is dropped.
 
 All tagged findings proceed to Phase 7 regardless of tag.
 
-**code-simplifier timing:** After 6a-6d, check if any critical/high findings survived. If none, dispatch code-simplifier now using the same named subagent pattern from Phase 3: `Agent(subagent_type: "claude-deep-review:code-simplifier", description: "Review: code-simplifier", prompt: "{project context, change summary, risk classification, all changed files diff}")`. Its findings are processed as a second pass through the same Phase 4-6 pipeline — blame classification (4a), factual verification (4b), batch (4c), Sonnet validation agents (Phase 5), filter (6a-6c), and tag as "improvement suggestion" (6d). This is not a separate pipeline; it is the same orchestrator running a mini-batch. The validated, tagged code-simplifier findings then merge into the Phase 7 challenge pool alongside the main findings.
+**code-simplifier timing:** After running `filter_findings.py`, check if any critical/high findings survived. If none, dispatch code-simplifier now using the same named subagent pattern from Phase 3: `Agent(subagent_type: "claude-deep-review:code-simplifier", description: "Review: code-simplifier", prompt: "{project context, change summary, risk classification, all changed files diff}")`. Its findings are processed as a second pass through the same Phase 4-6 pipeline — run `verify_findings.py`, dispatch Sonnet validation agents (Phase 5), run `filter_findings.py` with tag `"suggestion"`. The validated, tagged code-simplifier findings then merge into the Phase 7 challenge pool alongside the main findings.
 
 Read `references/validation-pipeline.md` for detailed filter/reconciliation rules.
 
