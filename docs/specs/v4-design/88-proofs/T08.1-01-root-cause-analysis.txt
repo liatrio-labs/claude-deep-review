@@ -1,0 +1,255 @@
+Root Cause Analysis: Missed Findings in keycloak-PR32918 and sentry-PR1
+=========================================================================
+Type: analysis
+Timestamp: 2026-03-31T16:00:00Z
+Task: T08.1 (#88)
+Status: PASS
+
+Sources analyzed:
+  - keycloak-PR32918 session: dc7c47da-42a0-4155-971a-df0b3de68e10.jsonl (207 lines)
+  - sentry-PR1 session: ecac0e3e-630b-4653-8880-778b78cd7cd4.jsonl (232 lines)
+  - evaluations_v3.json (golden set comparison)
+  - v4-master-improvement-plan.md (prior analysis context)
+
+===============================================================================
+SECTION 1: keycloak-PR32918 — Missed Findings (2 FN, 0 TP)
+===============================================================================
+
+Golden set:
+  FN-1: "Recursive caching call using session instead of delegate" (CRITICAL)
+  FN-2: "Cleanup reference uses incorrect alias - should be 'idp-alias-' + i instead of 'alias'" (MEDIUM)
+
+What the pipeline produced:
+  - bug-detector: 1 finding (wrapped model asymmetry in invalidation logic, conf 73)
+  - security-reviewer: 0 findings
+  - cross-file-impact: 0 findings
+  - test-analyzer: 2 findings (untested invalidation, untested sub-key expansion)
+  - conventions-and-intent: 0 findings
+
+Final output: 1 improvement suggestion (code simplifier: repeated getLoginPredicate() calls)
+All 3 Phase 3 findings (bug-1, test-1, test-2) were filtered in Phase 6 for being
+below the 80 confidence threshold after Phase 5 validation dropped their scores.
+
+--- Root Cause 1: bug-detector failed to trace delegation pattern deeply enough ---
+
+The CRITICAL golden finding ("recursive caching call using session instead of delegate")
+requires understanding that InfinispanIdentityProviderStorageProvider acts as a caching
+proxy for an underlying delegate (idpDelegate). The bug is that when the cache calls
+getForLogin(), it uses `this` (the session/cache layer) instead of `idpDelegate` (the
+underlying storage), creating a recursive call that re-enters the cache layer instead
+of fetching from the database.
+
+The bug-detector's analysis text (9370 chars, 21 tool calls over 297 seconds) shows it
+examined the file extensively — it analyzed isInvalid patterns, getByOrganization
+consistency, BROKER_PUBLIC changes, NPE in remove(), and FetchMode.ORG_ONLY with null
+organizationId. However, it focused on the INVALIDATION logic (registerIDPLoginInvalidation,
+registerIDPLoginInvalidationOnUpdate) and never traced the RETRIEVAL path of getForLogin()
+to check whether the cache delegates correctly.
+
+Specifically, the bug-detector:
+  - DID read the full InfinispanIdentityProviderStorageProvider.java (53K tokens used)
+  - DID trace cache invalidation logic exhaustively
+  - DID NOT trace the getForLogin() method's delegation chain
+  - DID NOT check whether cached ID resolution (getById calls within getForLogin)
+    routes through `this` vs `idpDelegate`
+  - DID NOT examine the delegation/proxy pattern as a whole
+
+The bug-detector found a different issue (wrapped model asymmetry, bug-1) that was
+plausible but scored 73 confidence and was filtered in Phase 6. The finding it found
+is an edge case involving organization disable/enable sequences — a real but unlikely
+scenario. Meanwhile, the CRITICAL recursive caching bug is trivially triggerable
+(any cache miss on getForLogin triggers it).
+
+Contributing factors:
+  (a) The bug-detector spec says "Trace data flow from input to output" and "Cross-file
+      investigation" but has no specific guidance about delegation/proxy/wrapper patterns.
+      Caching proxies are a common source of bugs (recursive delegation, stale data,
+      incorrect delegate selection) but the spec doesn't call this out.
+  (b) The 21 tool calls over 297 seconds suggest the agent spent most of its budget
+      analyzing invalidation logic rather than the retrieval path. There was no mechanism
+      to ensure balanced coverage across both read-path and write-path of the cache.
+  (c) The change summary provided to agents mentioned "cache layer" and "invalidation
+      logic" prominently, which may have anchored the bug-detector toward invalidation
+      analysis at the expense of cache retrieval analysis.
+
+--- Root Cause 2: No agent detected incorrect alias in test cleanup ---
+
+The MEDIUM golden finding ("Cleanup reference uses incorrect alias") targets the test
+file OrganizationCacheTest.java. The test creates IDPs with aliases like "idp-alias-0",
+"idp-alias-1", etc., but the cleanup code references a hardcoded "alias" string instead
+of "idp-alias-" + i.
+
+The test-analyzer agent (58934 tokens, 30 tool calls, 366 seconds) focused on identifying
+MISSING test coverage (untested invalidation paths, untested sub-key expansion) rather
+than BUGS WITHIN existing test code. The test-analyzer's spec is explicitly focused on
+test coverage gaps, not bugs in test logic.
+
+The bug-detector's spec says "Issues in code the author didn't change, unless the author's
+changes create a new interaction bug" but the test IS part of this PR (all new code).
+However, the bug-detector appears to have focused entirely on the main implementation
+file and did not analyze the test file for logic bugs.
+
+Contributing factors:
+  (a) The bug-detector spec's "What you do NOT report" section says "Error handling in
+      test code (test assertions are expected to throw)." While this specific exclusion
+      doesn't apply to test logic bugs, the presence of test exclusion language may
+      cause the agent to deprioritize test file analysis.
+  (b) The test-analyzer spec focuses on coverage gaps rather than logic errors in tests.
+      There is a gap in the pipeline: no agent is specifically tasked with finding bugs
+      in test code itself (wrong assertions, incorrect setup, wrong aliases).
+  (c) The orchestrator classified OrganizationCacheTest.java as "Low risk" in the triage,
+      which may have reduced attention from all agents.
+
+--- Root Cause 3: Pipeline filtering removed the only findings that existed ---
+
+The bug-detector's bug-1 (wrapped model asymmetry, conf 73) was the closest the pipeline
+came to a finding on the main code. Phase 5 validation dropped it further to conf 55,
+and Phase 6 filtered it below the 80 threshold.
+
+The validation pipeline worked correctly per its design — the finding WAS speculative
+(the scenario requires org disable + IDP update + org re-enable in sequence). But this
+filtering also meant ZERO findings survived for a PR with 2 golden comments.
+
+When no findings survive filtering, the pipeline dispatches code-simplifier as a fallback.
+The code-simplifier found a code quality nit (repeated getLoginPredicate() calls) which
+was the session's sole output. This fallback mechanism works but cannot recover missed
+substantive findings — it only finds style/simplification issues.
+
+===============================================================================
+SECTION 2: sentry-PR1 — Missed Finding (1 FN)
+===============================================================================
+
+Golden set (3 total, 2 TP, 1 FN):
+  TP-1: "Django querysets do not support negative slicing" (HIGH) — matched
+  TP-2: "get_item_key assumes numeric key but used with datetime" (HIGH) — matched
+  FN-1: "organization_context.member is None for API key auth" (HIGH) — missed
+
+What the pipeline produced:
+  - 7 candidates total, 2 true positives, 4 false positives, 1 false negative
+  - Precision: 28.6%, Recall: 66.7%
+
+--- Root Cause 4: Orchestrator incorrectly dismissed bug-5 in Phase 4b ---
+
+The bug-detector DID find this issue. Agent output (at line 93 of transcript):
+
+  "id": "bug-5",
+  "dimension": "bug",
+  "severity": "high",
+  "confidence": 82,
+  "title": "Potential AttributeError when superuser without org membership accesses endpoint"
+  "description": "The code accesses organization_context.member.has_global_access without
+   checking if member is None. According to RpcUserOrganizationContext model definition,
+   member: RpcOrganizationMember | None = None -- member can be None when the user has no
+   membership in the organization."
+
+This finding was CORRECT. The golden comment confirms it: "When requests are authenticated
+with API keys or org auth tokens (which have user_id=None), organization_context.member is
+None."
+
+However, the orchestrator dismissed it during Phase 4b (factual verification):
+
+  "bug-5 (AttributeError when member is None): CONFIDENCE SET TO 0 — Python short-circuits
+   `or` when is_superuser=True; non-superusers without membership can't pass
+   OrganizationAuditPermission"
+
+The orchestrator's reasoning was WRONG in two ways:
+
+  (a) The orchestrator assumed only superusers reach this code. API key authentication
+      with org:write scope can pass OrganizationAuditPermission without being a superuser
+      and without having an OrganizationMember record. The orchestrator did not check the
+      permission class's has_permission() method for API token auth paths.
+
+  (b) Even for superusers, the short-circuit argument is incomplete. The expression is:
+      `request.user.is_superuser or organization_context.member.has_global_access`
+      If is_superuser=True, Python short-circuits and never evaluates .member.has_global_access.
+      But if is_superuser=False AND the request uses API key auth (where member=None),
+      Python evaluates the right side and crashes with AttributeError.
+
+The orchestrator ran only 3 Grep commands during Phase 4b verification:
+  - Grep for "has_global_access" (found the model definition)
+  - Grep for "Negative indexing is not supported" (negative offset check)
+  - Grep for "Pagination offset cannot be negative" (BadPaginationError)
+
+It did NOT:
+  - Grep for the permission class OrganizationAuditPermission to check its auth paths
+  - Read the permission class to verify what authentication methods it accepts
+  - Check whether API token auth populates organization_context.member
+
+Contributing factors:
+  (a) Phase 4b is described as "deterministic, no LLM" but is actually performed by the
+      LLM orchestrator. The orchestrator applied incorrect reasoning (assuming only
+      superusers reach the code) without grounding that assumption in code.
+  (b) The orchestrator's Phase 4b verification was selective — it verified 3 of ~15
+      findings' claims but made logical deductions for others (including bug-5) without
+      reading the relevant code. This is exactly the "acknowledge-then-skip" anti-pattern
+      identified in Artifact #17.
+  (c) There was no self-check mechanism to prevent the orchestrator from zeroing out a
+      finding that the bug-detector (a specialized agent) flagged with 82 confidence.
+      The orchestrator overrode a specialist agent's assessment using incorrect reasoning.
+
+===============================================================================
+SECTION 3: Cross-Session Root Cause Taxonomy
+===============================================================================
+
+RC-1: Insufficient delegation/proxy pattern tracing (keycloak FN-1)
+  Impact: CRITICAL finding missed
+  Affected phase: Phase 3 (bug-detector agent)
+  Fix category: Agent prompt enhancement
+  Recommendation: Add "delegation/proxy/wrapper patterns" to bug-detector's investigation
+  checklist. When code implements a cache, proxy, or decorator pattern, the agent should
+  explicitly trace: (1) does the wrapper correctly delegate to the underlying implementation?
+  (2) does the wrapper avoid re-entering itself recursively? (3) does the wrapper use the
+  correct delegate reference (this vs delegate vs session)?
+
+RC-2: Test logic bugs fall through agent gap (keycloak FN-2)
+  Impact: MEDIUM finding missed
+  Affected phase: Phase 3 (no agent covers test logic bugs)
+  Fix category: Agent scope clarification
+  Recommendation: Either expand bug-detector scope to explicitly include "logic bugs in
+  test code that is part of this PR" or add a note to test-analyzer to check for incorrect
+  assertions, wrong fixture values, and mismatched cleanup in new test code.
+
+RC-3: Orchestrator incorrectly overrides agent findings in Phase 4b (sentry FN-1)
+  Impact: HIGH finding killed
+  Affected phase: Phase 4b (orchestrator factual verification)
+  Fix category: Phase 4b enforcement / scripting
+  Recommendation: This is the strongest argument for V4-08 (deterministic Phase 4 script).
+  The orchestrator applied incorrect logical reasoning to override a specialist agent's
+  finding. A script would either verify the claim mechanically (check if member can be None
+  by reading the type signature) or flag it for human/Phase 5 review rather than zeroing it.
+  At minimum, Phase 4b should be prohibited from setting confidence to 0 — it should only
+  flag factual inconsistencies for Phase 5 validators to adjudicate.
+
+RC-4: Incomplete Phase 4b verification coverage (sentry FN-1, keycloak context)
+  Impact: Affects finding survival
+  Affected phase: Phase 4b
+  Fix category: Enforcement / scripting
+  Recommendation: Phase 4b should verify EVERY finding, not selectively. The spec says
+  "ALL findings" but the orchestrator skipped or shortcut several. V4-08 script would
+  enforce this mechanically.
+
+RC-5: Change summary anchoring biases agent attention (keycloak FN-1)
+  Impact: Contributes to incomplete coverage
+  Affected phase: Phase 2f -> Phase 3
+  Fix category: Prompt engineering
+  Recommendation: The change summary emphasized "invalidation logic" which may have anchored
+  the bug-detector toward write-path analysis. Consider adding to the agent prompt: "Analyze
+  BOTH the read path and write path of any cache/proxy/decorator implementation. Do not
+  assume the change summary covers all important aspects of the change."
+
+===============================================================================
+SECTION 4: Recommendations Prioritized by Impact
+===============================================================================
+
+Priority 1 (addresses CRITICAL miss):
+  - RC-1: Add delegation/proxy pattern tracing to bug-detector
+  - RC-3: Prevent Phase 4b from zeroing agent findings; script V4-08
+
+Priority 2 (addresses HIGH miss):
+  - RC-4: Enforce complete Phase 4b verification via script
+
+Priority 3 (addresses MEDIUM miss):
+  - RC-2: Clarify test logic bug ownership between bug-detector and test-analyzer
+
+Priority 4 (systemic improvement):
+  - RC-5: Mitigate change summary anchoring bias in agent prompts
