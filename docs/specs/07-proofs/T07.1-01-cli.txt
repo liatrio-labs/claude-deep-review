@@ -1,0 +1,40 @@
+Type: cli
+Command: grep -A10 'per.dimension' skills/deep-review/references/review-md-spec.md
+Expected: Per-dimension syntax shown
+Timestamp: 2026-03-31T00:00:00Z
+
+--- OUTPUT ---
+<!-- Use a plain number for all dimensions, or key:value pairs for per-dimension control: -->
+<!-- bugs: 75 -->
+<!-- security: 70 -->
+<!-- cross-file-impact: 80 -->
+<!-- conventions: 85 -->
+<!-- tests: 80 -->
+<!-- types: 80 -->
+<!-- simplification: 80 -->
+75
+
+## Max Findings
+--
+Rules for per-dimension thresholds:
+- Dimension names must match Focus section values: `bugs`, `security`, `cross-file-impact`, `tests`, `conventions`, `types`, `simplification`
+- If a plain number is provided (current format), it applies as the default for all non-security dimensions
+- If per-dimension values are provided, they override the plain number default for that dimension
+- Dimensions not listed use the plain number default (or 80 if no default is set)
+- The security minimum of 70 always applies regardless of setting — you cannot set `security` below 70
+- Per-dimension settings in subdirectory REVIEW.md files override the inherited value for that dimension only
+
+### Max Findings
+--
+     To set per-dimension thresholds, replace the plain number with key:value pairs:
+     bugs: 75
+     security: 70
+     cross-file-impact: 80
+     conventions: 85
+     tests: 80
+     types: 80
+     simplification: 80
+     Omitted dimensions use the plain number default (or 80 if no default is set).
+     Security cannot be set below 70. -->
+
+Status: PASS

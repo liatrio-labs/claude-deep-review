@@ -111,6 +111,8 @@ If ALL files are low-risk AND total lines <50, ask Light review vs Full review (
 
 > **You cannot write this summary yourself.** Your growing context biases any summary you produce. A subagent starts clean and produces an uncontaminated summary. This is not optional.
 
+> **Dispatch ordering:** 2f is independent of 2e (risk classification). Dispatch the change summarizer concurrent with 2e — launch both in the same message for parallel execution. The summarizer result is needed by Phase 3 agents, so earlier dispatch reduces latency.
+
 Dispatch a **Sonnet agent** for a 3-5 sentence semantic summary describing what the PR *claims* to do, why, and the risk profile. Provided to ALL review agents as shared context.
 
 In **Frontier mode**, use an **Opus agent** instead of Sonnet for the summarizer to leverage extended reasoning capabilities.
@@ -152,12 +154,10 @@ If `docs/`, `specs/`, `research/` exist, read relevant files. Send only to conve
 ## 2i. History Context Preprocessing
 
 **Deterministic preprocessing, not an LLM agent.** For each changed file:
-1. `git log --oneline -10 -- <file>` for recent history
-2. `git blame` on changed line ranges
-3. `gh pr list --state merged --search '<filename>' --limit 3` for past review feedback
-4. Identify co-change patterns (files that consistently change together)
+1. `git log --oneline -10 -- <file>` for recent change history
+2. `git blame` on changed line ranges (used by verify_findings.py in Phase 4)
 
-Distribute: bug-detector gets history/blame/co-change; conventions-and-intent gets past PR comments/pattern drift; cross-file-impact-analyzer gets co-change patterns.
+Distribute: bug-detector gets history context; conventions-and-intent gets pattern drift context.
 
 ---
 

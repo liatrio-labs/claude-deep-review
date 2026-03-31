@@ -40,6 +40,14 @@ medium
 
 ## Confidence Threshold
 <!-- Minimum confidence score (0-100) to include in the report. Default: 80 -->
+<!-- Use a plain number for all dimensions, or key:value pairs for per-dimension control: -->
+<!-- bugs: 75 -->
+<!-- security: 70 -->
+<!-- cross-file-impact: 80 -->
+<!-- conventions: 85 -->
+<!-- tests: 80 -->
+<!-- types: 80 -->
+<!-- simplification: 80 -->
 75
 
 ## Max Findings
@@ -114,6 +122,27 @@ The minimum severity level to include in the report:
 An integer from 0-100. Findings below this confidence score are filtered out before the report. Default is 80. Lower values (e.g., 70) surface more findings but may include more false positives. Higher values (e.g., 90) are stricter but may miss some real issues.
 
 **Important:** The `confidence_threshold` field sets the default for non-security dimensions. Security findings always use a minimum threshold of 70, regardless of this setting. Setting `confidence_threshold: 90` would raise the bar for bugs, tests, conventions, and other dimensions to 90, but security findings would still be included at confidence 70+. This is by design — security false negatives are costlier than false positives.
+
+**Per-dimension thresholds:** You can override the threshold for individual dimensions using a YAML-like key:value format. This is useful when some dimensions (e.g., conventions) generate more noise than others (e.g., bugs).
+
+```
+## Confidence Threshold
+bugs: 75
+security: 70
+cross-file-impact: 80
+conventions: 85
+tests: 80
+types: 80
+simplification: 80
+```
+
+Rules for per-dimension thresholds:
+- Dimension names must match Focus section values: `bugs`, `security`, `cross-file-impact`, `tests`, `conventions`, `types`, `simplification`
+- If a plain number is provided (current format), it applies as the default for all non-security dimensions
+- If per-dimension values are provided, they override the plain number default for that dimension
+- Dimensions not listed use the plain number default (or 80 if no default is set)
+- The security minimum of 70 always applies regardless of setting — you cannot set `security` below 70
+- Per-dimension settings in subdirectory REVIEW.md files override the inherited value for that dimension only
 
 ### Max Findings
 
@@ -313,7 +342,18 @@ When the user opts to create a REVIEW.md during Phase 2c, use these templates. T
 
 <!-- Minimum confidence (0-100) to include findings. Default: 80.
      Security findings always use a minimum of 70 regardless of this setting.
-     Start at 80-85 and lower based on false-positive rates. -->
+     Start at 80-85 and lower based on false-positive rates.
+
+     To set per-dimension thresholds, replace the plain number with key:value pairs:
+     bugs: 75
+     security: 70
+     cross-file-impact: 80
+     conventions: 85
+     tests: 80
+     types: 80
+     simplification: 80
+     Omitted dimensions use the plain number default (or 80 if no default is set).
+     Security cannot be set below 70. -->
 
 ## Severity Threshold
 
