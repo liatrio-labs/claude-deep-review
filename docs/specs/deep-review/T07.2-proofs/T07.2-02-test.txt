@@ -1,0 +1,38 @@
+Type: test
+Command: python3 $TMPDIR/t072_test.py (inline requirement tests)
+Expected: All 16 requirement checks pass
+Timestamp: 2026-03-31T00:00:00Z
+Status: PASS
+
+--- Tests Covered ---
+R07.2.1a: Parser handles plain number format in ## Confidence Threshold section
+R07.2.1b: Parser handles key:value format (bugs:75, security:70, conventions:85)
+R07.2.1c: Parser handles mixed format (plain number global + key:value overrides)
+R07.2.2:  Per-dimension threshold applied in filter (bugs:75 threshold, 77-confidence finding passes)
+R07.2.2:  Global threshold applied when no per-dimension entry (logic dim, 77-confidence eliminated by 80)
+R07.2.3:  Unlisted dimension at 78 < global 80 is eliminated
+R07.2.3:  Unlisted dimension at 82 >= global 80 passes
+R07.2.4:  Security minimum 70 enforced (confidence 65 eliminated even with dim_threshold:60)
+R07.2.4:  Security at 72 passes floor 70
+R07.2.4b: Security floor 70 trumps lower dim setting of 65 (68 eliminated)
+R07.2.4b: Security at 71 passes floor 70
+
+--- Output ---
+[PASS] R07.2.1a: plain number sets confidence_threshold to 75
+[PASS] R07.2.1a: plain number leaves dimension_thresholds empty
+[PASS] R07.2.1b: key:value sets bugs threshold
+[PASS] R07.2.1b: key:value sets security threshold
+[PASS] R07.2.1b: key:value sets conventions threshold
+[PASS] R07.2.1c: mixed sets global to 80
+[PASS] R07.2.1c: mixed sets bugs override to 75
+[PASS] R07.2.1c: mixed sets conventions override to 90
+[PASS] R07.2.2: bugs finding at 77 passes bugs:75 threshold
+[PASS] R07.2.2: logic finding at 77 eliminated by global:80 threshold
+[PASS] R07.2.3: unlisted dimension at 78 < global 80 is eliminated
+[PASS] R07.2.3: unlisted dimension at 82 >= global 80 passes
+[PASS] R07.2.4: security at 65 eliminated (floor=70)
+[PASS] R07.2.4: security at 72 passes (72 >= floor 70)
+[PASS] R07.2.4b: security floor 70 trumps dim setting of 65 (68 eliminated)
+[PASS] R07.2.4b: security at 71 passes floor 70
+
+16/16 checks passed

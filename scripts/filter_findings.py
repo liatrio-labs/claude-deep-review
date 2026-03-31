@@ -24,7 +24,8 @@ Input JSON schema:
             "title":      "...",
             "body":       "...",
             "blame_tag":  "new|surfaced|pre-existing",   # optional
-            "dimensions": ["security", "logic"]           # optional
+            "dimensions": ["security", "logic"],          # optional
+            "agent":      "security-reviewer"             # optional, used for disagreement detection
         }
 
 Output JSON schema:
@@ -252,16 +253,92 @@ _INJECTION_BODY_PATTERNS = [
     r"lorem ipsum",
 ]
 
+# Shell command patterns — presence in a finding body/title indicates the agent
+# was manipulated by adversarial content embedded in the code under review.
+# These match the patterns documented in false-positive-exclusions.md
+_INJECTION_SHELL_PATTERNS = [
+    r"\brm\s+-[rf]",
+    r"\bcurl\s+https?://",
+    r"\bwget\s+https?://",
+    r"\bgit\s+push\b",
+    r"\bgh\s+api\b",
+]
+
+# URL patterns — findings should reference code locations, not external URLs to visit/fetch
+_INJECTION_URL_PATTERNS = [
+    r"https?://[^\s)>\"']{20,}",
+    r"\bvisit\s+https?://",
+    r"\bdownload from\s+https?://",
+    r"\bnavigate to\b",
+]
+
+# Encoded payload patterns — base64 or hex blobs in findings are injection artifacts
+_INJECTION_ENCODED_PATTERNS = [
+    r"\b[A-Za-z0-9+/]{40,}={0,2}\b",
+    r"(?<!\w)(?:0x)?[0-9a-fA-F]{32,}(?!\w)",
+]
+
+# Bypass / auto-approve instruction patterns
+_INJECTION_BYPASS_PATTERNS = [
+    r"\bskip\s+review\b",
+    r"\bauto[-\s]?approve\b",
+    r"\bbypass\s+(?:security\s+)?controls?\b",
+    r"\bbypass\s+(?:the\s+)?(?:auth|authentication|authorization)\b",
+    r"\bdisable\s+(?:auth|authentication|authorization)\b",
+    r"\bmark\s+(?:this\s+)?(?:finding\s+)?as\s+safe\b",
+    r"\bapprove\s+(?:this|the)\s+(?:PR|pull\s+request|change)\b",
+]
+
+# Instructional tone patterns — analytical findings do not issue commands to the user
+_INJECTION_INSTRUCTIONAL_PATTERNS = [
+    r"\byou\s+should\s+run\b",
+    r"\bexecute\s+the\s+following\b",
+    r"\brun\s+this\s+command\b",
+    r"\bplease\s+run\b",
+    r"\bpaste\s+(?:this|the\s+following)\s+into\s+(?:your\s+)?terminal",
+    r"\bcopy\s+and\s+paste\s+the\s+following\b",
+]
+
+# Patterns that recommend introducing vulnerabilities or disabling security features
+_INJECTION_VULN_INTRO_PATTERNS = [
+    r"\badd\s+eval\s*\(",
+    r"\buse\s+eval\s*\(",
+    r"\bdisable\s+(?:CORS|CSP|content[-\s]security[-\s]policy)\b",
+    r"\bdisable\s+(?:CSRF|csrf)\s+(?:protection|check|token)\b",
+    r"\ballow\s+all\s+origins\b",
+    r"\bset\s+secure\s+to\s+false\b",
+    r"\bdisable\s+(?:TLS|SSL|HTTPS)\s+(?:verification|validation)\b",
+    r"\bskip\s+(?:certificate|cert)\s+(?:verification|validation)\b",
+    r"\bdisable\s+security\s+(?:check|feature|control)\b",
+]
+
+# Minimum word count for a valid finding body; fewer words + high confidence = suspicious
+_MIN_BODY_WORDS = 10
+_HIGH_CONFIDENCE_THRESHOLD = 85
+
+
+def _count_words(text):
+    """Return the number of words in text (whitespace-split)."""
+    return len(text.split()) if text.strip() else 0
+
 
 def apply_injection_filter(findings):
     """
     Remove findings that appear to be prompt-injection artifacts or hallucinations.
 
-    Detection heuristics:
-      - Title matches known placeholder patterns (TODO, FIXME, etc.)
-      - Body contains XML-like injection markers
-      - File path is empty, non-existent placeholder, or contains template markers
-      - Both title and body are identical (copy-paste artifact)
+    Detection heuristics (from false-positive-exclusions.md § Prompt Injection Artifacts):
+      1. Body or title contains shell commands (rm -rf, curl, wget, git push, gh api)
+      2. Body contains URLs to visit or encoded payloads (base64, hex)
+      3. Body instructs the user to bypass controls, skip review, or auto-approve
+      4. Body has fewer than 10 words AND confidence is high (>= 85) — suspiciously terse
+      5. Tone shifts from analytical to instructional ("you should run this command")
+      6. Recommends adding code that introduces a vulnerability or disables security features
+      7. Title matches known placeholder patterns (TODO, FIXME, etc.)
+      8. Body contains XML-like injection markers
+      9. File path is empty or contains template markers
+      10. Duplicate signature (title+file+line)
+
+    Eliminated findings are logged via stderr for the methodology section.
 
     Returns (passed, eliminated) lists. Each eliminated finding gains an
     "eliminated_by" field set to "injection".
@@ -270,30 +347,84 @@ def apply_injection_filter(findings):
     eliminated = []
     seen_signatures = {}
 
+    # Compile pattern lists once
+    shell_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_SHELL_PATTERNS]
+    url_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_URL_PATTERNS]
+    encoded_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_ENCODED_PATTERNS]
+    bypass_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_BYPASS_PATTERNS]
+    instruct_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_INSTRUCTIONAL_PATTERNS]
+    vuln_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_VULN_INTRO_PATTERNS]
+    title_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_TITLE_PATTERNS]
+    body_marker_re = [re.compile(p, re.IGNORECASE) for p in _INJECTION_BODY_PATTERNS]
+
+    def _first_match(patterns, text):
+        """Return the pattern of the first regex that matches text, or None."""
+        for rx in patterns:
+            if rx.search(text):
+                return rx.pattern
+        return None
+
     for finding in findings:
         title = finding.get("title", "")
         body = finding.get("body", "")
         filepath = finding.get("file", "")
+        confidence = finding.get("confidence", 0)
+        combined = f"{title}\n{body}"
 
         reasons = []
 
-        # Check title patterns
-        for pattern in _INJECTION_TITLE_PATTERNS:
-            if re.search(pattern, title, re.IGNORECASE):
-                reasons.append(f"title matches injection pattern: {pattern!r}")
-                break
+        # 1. Shell commands anywhere in the combined text
+        m = _first_match(shell_re, combined)
+        if m:
+            reasons.append(f"contains shell command pattern: {m!r}")
 
-        # Check body patterns
-        for pattern in _INJECTION_BODY_PATTERNS:
-            if re.search(pattern, body, re.IGNORECASE):
-                reasons.append(f"body matches injection pattern: {pattern!r}")
-                break
+        # 2a. URLs to visit in body
+        m = _first_match(url_re, body)
+        if m:
+            reasons.append(f"body contains visit-URL pattern: {m!r}")
 
-        # Check for empty or template file paths
+        # 2b. Encoded payloads in body
+        m = _first_match(encoded_re, body)
+        if m:
+            reasons.append(f"body contains encoded payload pattern: {m!r}")
+
+        # 3. Bypass / auto-approve instructions in body
+        m = _first_match(bypass_re, body)
+        if m:
+            reasons.append(f"body contains bypass/auto-approve instruction: {m!r}")
+
+        # 4. Short description with high confidence (suspiciously terse)
+        body_word_count = _count_words(body)
+        if body_word_count < _MIN_BODY_WORDS and confidence >= _HIGH_CONFIDENCE_THRESHOLD:
+            reasons.append(
+                f"suspiciously short body ({body_word_count} words) with high confidence ({confidence})"
+            )
+
+        # 5. Instructional tone in body
+        m = _first_match(instruct_re, body)
+        if m:
+            reasons.append(f"body uses instructional tone: {m!r}")
+
+        # 6. Recommends introducing vulnerability or disabling security features
+        m = _first_match(vuln_re, body)
+        if m:
+            reasons.append(f"body recommends introducing vulnerability: {m!r}")
+
+        # 7. Title matches placeholder patterns
+        m = _first_match(title_re, title)
+        if m:
+            reasons.append(f"title matches placeholder pattern: {m!r}")
+
+        # 8. Body contains XML-like injection markers
+        m = _first_match(body_marker_re, body)
+        if m:
+            reasons.append(f"body matches injection marker: {m!r}")
+
+        # 9. Empty or template file path
         if not filepath or re.search(r"<.*?>|\{.*?\}", filepath):
             reasons.append(f"file path is empty or contains template markers: {filepath!r}")
 
-        # Check for duplicate signature (title+file+line)
+        # 10. Duplicate signature (title+file+line)
         sig = (title.lower().strip(), filepath, finding.get("line"))
         if sig in seen_signatures:
             reasons.append(f"duplicate of finding {seen_signatures[sig]!r}")
@@ -305,6 +436,10 @@ def apply_injection_filter(findings):
             elim["eliminated_by"] = "injection"
             elim["elimination_reason"] = "; ".join(reasons)
             eliminated.append(elim)
+            warn(
+                f"[injection-filter] Discarded finding {finding.get('id', '?')!r}: "
+                + reasons[0]
+            )
         else:
             passed.append(finding)
 
@@ -315,79 +450,203 @@ def apply_injection_filter(findings):
 # Disagreement detection
 # ---------------------------------------------------------------------------
 
+# Agent names used in suppression rules (must match "agent" field on findings)
+_AGENT_BUG_DETECTOR = "bug-detector"
+_AGENT_CONVENTIONS = "conventions-and-intent"
+_AGENT_TEST_ANALYZER = "test-analyzer"
+_AGENT_SECURITY_REVIEWER = "security-reviewer"
+
+# Flat confidence boost applied to consensus findings (spec: +10, capped at 100)
+_CONSENSUS_BOOST = 10
+
+
 def detect_disagreement(findings):
     """
-    Detect consensus, singleton, and contradiction patterns across findings.
+    Detect consensus, singleton, contradiction, and security-escalation patterns
+    across findings from multiple review agents.
 
-    A "consensus" finding is one where multiple review agents reported the same
-    issue (same file + approximate line range + similar title). Consensus findings
-    receive a confidence boost.
+    Rules applied (per spec section 6c):
 
-    A "contradiction" is where one finding asserts an issue that another finding
-    explicitly says is safe (e.g., one flags auth bypass, another confirms auth is correct).
-    Contradictions are flagged for human review.
+    Consensus:
+      Multiple agents flag the same file + overlapping line range + related concern.
+      Boost confidence +10 (capped at 100). Annotate with corroborated_by list.
 
-    Returns the same findings list with added fields on each finding:
-        consensus_count   int    number of agents that reported this finding (1 = singleton)
-        consensus_boost   int    confidence added due to consensus (0 if singleton)
-        contradiction     bool   True if a contradictory finding exists
+    Singleton:
+      One agent only — pass through unchanged.
 
-    Also returns a boosted_count int for stats reporting.
+    Contradiction:
+      Agents conflict on the same location (opposing severity signals). Flag with
+      contradiction=True for human review.
+
+    Suppression rules:
+      - bug-detector AND conventions-and-intent both report on the same location,
+        and conventions-and-intent labels the behaviour as intentional: suppress the
+        bug finding (eliminated_by="suppressed:intentional").
+      - test-analyzer AND conventions-and-intent both report on the same location,
+        and conventions-and-intent labels it as generated/scaffolding: suppress the
+        test finding (eliminated_by="suppressed:generated").
+
+    Security escalation:
+      Security-reviewer flags a location AND another agent says the same location is
+      safe (low severity): keep the security finding. Both findings are annotated with
+      security_escalation=True.
+
+    Returns (active_findings, suppressed_findings, boosted_count):
+      active_findings    list   findings that survived suppression, each with consensus metadata
+      suppressed_findings list  findings removed by suppression rules
+      boosted_count      int    number of findings whose confidence was boosted
     """
-    # Group by (file, approximate line, normalized title prefix)
-    groups = {}
+    # -----------------------------------------------------------------------
+    # Phase 1: Group findings by (file, line_bucket) for co-location checks
+    # -----------------------------------------------------------------------
+    def _line_bucket(line):
+        """Round line to nearest 10 to group nearby findings."""
+        try:
+            return round(int(line) / 10) * 10
+        except (TypeError, ValueError):
+            return 0
+
+    location_groups = {}
     for finding in findings:
+        key = (finding.get("file", ""), _line_bucket(finding.get("line", 0)))
+        location_groups.setdefault(key, []).append(finding)
+
+    # -----------------------------------------------------------------------
+    # Phase 2: Apply suppression rules to co-located findings
+    # -----------------------------------------------------------------------
+    suppressed_ids = set()
+    suppressed = []
+
+    for key, group in location_groups.items():
+        if len(group) < 2:
+            continue
+
+        agent_map = {}
+        for f in group:
+            agent = f.get("agent", "").lower()
+            agent_map.setdefault(agent, []).append(f)
+
+        # Suppression rule 1: bug-detector + conventions-and-intent → intentional
+        if _AGENT_BUG_DETECTOR in agent_map and _AGENT_CONVENTIONS in agent_map:
+            for conv_finding in agent_map[_AGENT_CONVENTIONS]:
+                conv_text = (conv_finding.get("body", "") + " " + conv_finding.get("title", "")).lower()
+                if re.search(r"\bintentional\b|\bby\s+design\b|\bexpected\s+behavior\b|\bdeliberate\b", conv_text):
+                    for bug_finding in agent_map[_AGENT_BUG_DETECTOR]:
+                        fid = bug_finding.get("id", id(bug_finding))
+                        if fid not in suppressed_ids:
+                            suppressed_ids.add(fid)
+                            sup = dict(bug_finding)
+                            sup["eliminated_by"] = "suppressed:intentional"
+                            sup["elimination_reason"] = (
+                                f"conventions-and-intent confirms behaviour at "
+                                f"{bug_finding.get('file', '?')}:{bug_finding.get('line', '?')} "
+                                f"is intentional"
+                            )
+                            suppressed.append(sup)
+                    break
+
+        # Suppression rule 2: test-analyzer + conventions-and-intent → generated/scaffolding
+        if _AGENT_TEST_ANALYZER in agent_map and _AGENT_CONVENTIONS in agent_map:
+            for conv_finding in agent_map[_AGENT_CONVENTIONS]:
+                conv_text = (conv_finding.get("body", "") + " " + conv_finding.get("title", "")).lower()
+                if re.search(r"\bgenerated\b|\bscaffolding\b|\bauto[-\s]?generated\b|\bboilerplate\b", conv_text):
+                    for test_finding in agent_map[_AGENT_TEST_ANALYZER]:
+                        fid = test_finding.get("id", id(test_finding))
+                        if fid not in suppressed_ids:
+                            suppressed_ids.add(fid)
+                            sup = dict(test_finding)
+                            sup["eliminated_by"] = "suppressed:generated"
+                            sup["elimination_reason"] = (
+                                f"conventions-and-intent confirms code at "
+                                f"{test_finding.get('file', '?')}:{test_finding.get('line', '?')} "
+                                f"is generated/scaffolding"
+                            )
+                            suppressed.append(sup)
+                    break
+
+    # Remove suppressed findings from the active list
+    active = [f for f in findings if f.get("id", id(f)) not in suppressed_ids]
+
+    # -----------------------------------------------------------------------
+    # Phase 3: Consensus grouping (file + line_bucket + title prefix)
+    # -----------------------------------------------------------------------
+    consensus_groups = {}
+    for finding in active:
         file_ = finding.get("file", "")
-        line = finding.get("line", 0)
-        # Round line to nearest 5 to group nearby findings
-        line_bucket = round(line / 5) * 5 if line else 0
+        line = _line_bucket(finding.get("line", 0))
         title_key = re.sub(r"\s+", " ", finding.get("title", "")).lower()[:40]
-        group_key = (file_, line_bucket, title_key)
+        group_key = (file_, line, title_key)
+        consensus_groups.setdefault(group_key, []).append(finding)
 
-        if group_key not in groups:
-            groups[group_key] = []
-        groups[group_key].append(finding)
-
-    # Apply consensus metadata
     boosted_count = 0
-    for group_key, group in groups.items():
+    for group_key, group in consensus_groups.items():
         count = len(group)
-        boost = 0
+        agents_in_group = [f.get("agent", "") for f in group if f.get("agent")]
+
         if count > 1:
-            # Each additional confirming agent adds up to 5 points, capped at 15
-            boost = min((count - 1) * 5, 15)
+            # Consensus: multiple agents flagged the same location + concern
             boosted_count += count
+            for finding in group:
+                other_agents = [a for a in agents_in_group if a != finding.get("agent", "")]
+                finding["consensus_count"] = count
+                finding["consensus_boost"] = _CONSENSUS_BOOST
+                finding["corroborated_by"] = other_agents
+                original_conf = finding.get("confidence", 0)
+                finding["confidence"] = min(original_conf + _CONSENSUS_BOOST, 100)
+        else:
+            # Singleton
+            group[0]["consensus_count"] = 1
+            group[0]["consensus_boost"] = 0
+            group[0].setdefault("corroborated_by", [])
+
+    # -----------------------------------------------------------------------
+    # Phase 4: Contradiction and security escalation detection
+    # -----------------------------------------------------------------------
+    location_groups_active = {}
+    for finding in active:
+        key = (finding.get("file", ""), finding.get("line", 0))
+        location_groups_active.setdefault(key, []).append(finding)
+
+    for key, group in location_groups_active.items():
+        if len(group) < 2:
+            group[0].setdefault("contradiction", False)
+            group[0].setdefault("security_escalation", False)
+            continue
+
+        severities = {f.get("severity", "low").lower() for f in group}
+        agents_here = {f.get("agent", "").lower() for f in group}
+
+        # Basic contradiction: critical vs low at same file+line
+        has_contradiction = "critical" in severities and "low" in severities
+
+        # Security escalation: security-reviewer flags AND another agent says low/safe
+        has_security_escalation = (
+            _AGENT_SECURITY_REVIEWER in agents_here
+            and len(agents_here) > 1
+            and "low" in severities
+        )
 
         for finding in group:
-            finding["consensus_count"] = count
-            finding["consensus_boost"] = boost
-            if boost:
-                original_conf = finding.get("confidence", 0)
-                finding["confidence"] = min(original_conf + boost, 100)
+            finding["contradiction"] = has_contradiction
+            finding["security_escalation"] = has_security_escalation
+            if (
+                has_security_escalation
+                and finding.get("agent", "").lower() == _AGENT_SECURITY_REVIEWER
+            ):
+                finding["escalation_note"] = (
+                    "Kept: security-reviewer finding retained despite conflicting low-severity "
+                    "signal from another agent (security escalation rule)"
+                )
 
-    # Simple contradiction detection: findings that share a file+line but have
-    # directly opposing severity signals (one critical, one low on same location)
-    line_groups = {}
-    for finding in findings:
-        key = (finding.get("file", ""), finding.get("line", 0))
-        line_groups.setdefault(key, []).append(finding)
-
-    for key, group in line_groups.items():
-        if len(group) > 1:
-            severities = {f.get("severity", "low").lower() for f in group}
-            has_contradiction = "critical" in severities and "low" in severities
-            for finding in group:
-                finding["contradiction"] = has_contradiction
-        else:
-            group[0].setdefault("contradiction", False)
-
-    # Ensure all findings have defaults
-    for finding in findings:
+    # Ensure all active findings have default metadata fields
+    for finding in active:
         finding.setdefault("consensus_count", 1)
         finding.setdefault("consensus_boost", 0)
+        finding.setdefault("corroborated_by", [])
         finding.setdefault("contradiction", False)
+        finding.setdefault("security_escalation", False)
 
-    return findings, boosted_count
+    return active, suppressed, boosted_count
 
 
 # ---------------------------------------------------------------------------
@@ -611,8 +870,9 @@ def main():
     all_eliminated.extend(elim_injection)
     injections_removed = len(elim_injection)
 
-    # Step 4: disagreement detection (mutates findings in-place, adds metadata)
-    findings, consensus_boosted = detect_disagreement(findings)
+    # Step 4: disagreement detection (returns active findings, suppressed, boosted_count)
+    findings, elim_suppressed, consensus_boosted = detect_disagreement(findings)
+    all_eliminated.extend(elim_suppressed)
 
     # Step 5: tag for output routing
     findings, tagged_main, tagged_suggestion = tag_findings(findings)
