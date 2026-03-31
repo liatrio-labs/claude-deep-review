@@ -1,0 +1,10 @@
+Type: cli
+Command: grep -n "finding.get.*body\|finding.get.*blame_tag" scripts/filter_findings.py
+Expected: no matches (exit code 1 from grep)
+Timestamp: 2026-03-31T00:00:00Z
+Status: PASS
+
+--- OUTPUT ---
+(no output - no matches found)
+
+Exit code: 1 (grep exits 1 when no matches found, which confirms the requirement)

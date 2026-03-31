@@ -16,16 +16,17 @@ Input JSON schema:
     A JSON object or array of verified findings. When an object is given, the
     "findings" key is read. Each finding must have at minimum:
         {
-            "id":         "unique string",
-            "file":       "src/foo.py",
-            "line":       42,
-            "severity":   "critical|high|medium|low",
-            "confidence": 85,          # 0-100 integer
-            "title":      "...",
-            "body":       "...",
-            "blame_tag":  "new|surfaced|pre-existing",   # optional
-            "dimensions": ["security", "logic"],          # optional
-            "agent":      "security-reviewer"             # optional, used for disagreement detection
+            "id":          "unique string",
+            "file":        "src/foo.py",
+            "line_start":  42,
+            "line_end":    45,             # optional
+            "severity":    "critical|high|medium|low",
+            "confidence":  85,             # 0-100 integer
+            "title":       "...",
+            "description": "...",
+            "origin":      "new|surfaced", # optional, set by verify_findings.py
+            "dimension":   "security",     # optional, single string
+            "agent":       "security-reviewer"  # optional, used for disagreement detection
         }
 
 Output JSON schema:
@@ -139,6 +140,7 @@ def parse_review_md(path):
 
     # Also scan the whole file for bare key: value lines if no block found
     if not block_text:
+        warn(f"REVIEW.md at {path!r}: no deep-review config block found; falling back to whole-file scan.")
         block_text = text
 
     # confidence_threshold
@@ -195,7 +197,7 @@ def apply_threshold_filter(findings, config):
     for finding in findings:
         confidence = finding.get("confidence", 0)
         severity = finding.get("severity", "low").lower()
-        dimensions = [d.lower() for d in finding.get("dimensions", [])]
+        dimensions = [finding.get("dimension", "").lower()] if finding.get("dimension") else []
 
         # Determine effective confidence threshold
         is_security = "security" in dimensions
@@ -259,7 +261,7 @@ _INJECTION_BODY_PATTERNS = [
     r"lorem ipsum",
 ]
 
-# Shell command patterns — presence in a finding body/title indicates the agent
+# Shell command patterns — presence in a finding description/title indicates the agent
 # was manipulated by adversarial content embedded in the code under review.
 # These match the patterns documented in false-positive-exclusions.md
 _INJECTION_SHELL_PATTERNS = [
@@ -318,7 +320,7 @@ _INJECTION_VULN_INTRO_PATTERNS = [
     r"\bdisable\s+security\s+(?:check|feature|control)\b",
 ]
 
-# Minimum word count for a valid finding body; fewer words + high confidence = suspicious
+# Minimum word count for a valid finding description; fewer words + high confidence = suspicious
 _MIN_BODY_WORDS = 10
 _HIGH_CONFIDENCE_THRESHOLD = 85
 
@@ -372,10 +374,10 @@ def apply_injection_filter(findings):
 
     for finding in findings:
         title = finding.get("title", "")
-        body = finding.get("body", "")
+        description = finding.get("description", "")
         filepath = finding.get("file", "")
         confidence = finding.get("confidence", 0)
-        combined = f"{title}\n{body}"
+        combined = f"{title}\n{description}"
 
         reasons = []
 
@@ -384,54 +386,54 @@ def apply_injection_filter(findings):
         if m:
             reasons.append(f"contains shell command pattern: {m!r}")
 
-        # 2a. URLs to visit in body
-        m = _first_match(url_re, body)
+        # 2a. URLs to visit in description
+        m = _first_match(url_re, description)
         if m:
-            reasons.append(f"body contains visit-URL pattern: {m!r}")
+            reasons.append(f"description contains visit-URL pattern: {m!r}")
 
-        # 2b. Encoded payloads in body
-        m = _first_match(encoded_re, body)
+        # 2b. Encoded payloads in description
+        m = _first_match(encoded_re, description)
         if m:
-            reasons.append(f"body contains encoded payload pattern: {m!r}")
+            reasons.append(f"description contains encoded payload pattern: {m!r}")
 
-        # 3. Bypass / auto-approve instructions in body
-        m = _first_match(bypass_re, body)
+        # 3. Bypass / auto-approve instructions in description
+        m = _first_match(bypass_re, description)
         if m:
-            reasons.append(f"body contains bypass/auto-approve instruction: {m!r}")
+            reasons.append(f"description contains bypass/auto-approve instruction: {m!r}")
 
         # 4. Short description with high confidence (suspiciously terse)
-        body_word_count = _count_words(body)
-        if body_word_count < _MIN_BODY_WORDS and confidence >= _HIGH_CONFIDENCE_THRESHOLD:
+        description_word_count = _count_words(description)
+        if description_word_count < _MIN_BODY_WORDS and confidence >= _HIGH_CONFIDENCE_THRESHOLD:
             reasons.append(
-                f"suspiciously short body ({body_word_count} words) with high confidence ({confidence})"
+                f"suspiciously short description ({description_word_count} words) with high confidence ({confidence})"
             )
 
-        # 5. Instructional tone in body
-        m = _first_match(instruct_re, body)
+        # 5. Instructional tone in description
+        m = _first_match(instruct_re, description)
         if m:
-            reasons.append(f"body uses instructional tone: {m!r}")
+            reasons.append(f"description uses instructional tone: {m!r}")
 
         # 6. Recommends introducing vulnerability or disabling security features
-        m = _first_match(vuln_re, body)
+        m = _first_match(vuln_re, description)
         if m:
-            reasons.append(f"body recommends introducing vulnerability: {m!r}")
+            reasons.append(f"description recommends introducing vulnerability: {m!r}")
 
         # 7. Title matches placeholder patterns
         m = _first_match(title_re, title)
         if m:
             reasons.append(f"title matches placeholder pattern: {m!r}")
 
-        # 8. Body contains XML-like injection markers
-        m = _first_match(body_marker_re, body)
+        # 8. Description contains XML-like injection markers
+        m = _first_match(body_marker_re, description)
         if m:
-            reasons.append(f"body matches injection marker: {m!r}")
+            reasons.append(f"description matches injection marker: {m!r}")
 
         # 9. Empty or template file path
         if not filepath or re.search(r"<.*?>|\{.*?\}", filepath):
             reasons.append(f"file path is empty or contains template markers: {filepath!r}")
 
-        # 10. Duplicate signature (title+file+line)
-        sig = (title.lower().strip(), filepath, finding.get("line"))
+        # 10. Duplicate signature (title+file+line_start)
+        sig = (title.lower().strip(), filepath, finding.get("line_start"))
         if sig in seen_signatures:
             reasons.append(f"duplicate of finding {seen_signatures[sig]!r}")
         else:
@@ -514,7 +516,7 @@ def detect_disagreement(findings):
 
     location_groups = {}
     for finding in findings:
-        key = (finding.get("file", ""), _line_bucket(finding.get("line", 0)))
+        key = (finding.get("file", ""), _line_bucket(finding.get("line_start", 0)))
         location_groups.setdefault(key, []).append(finding)
 
     # -----------------------------------------------------------------------
@@ -535,7 +537,7 @@ def detect_disagreement(findings):
         # Suppression rule 1: bug-detector + conventions-and-intent → intentional
         if _AGENT_BUG_DETECTOR in agent_map and _AGENT_CONVENTIONS in agent_map:
             for conv_finding in agent_map[_AGENT_CONVENTIONS]:
-                conv_text = (conv_finding.get("body", "") + " " + conv_finding.get("title", "")).lower()
+                conv_text = (conv_finding.get("description", "") + " " + conv_finding.get("title", "")).lower()
                 if re.search(r"\bintentional\b|\bby\s+design\b|\bexpected\s+behavior\b|\bdeliberate\b", conv_text):
                     for bug_finding in agent_map[_AGENT_BUG_DETECTOR]:
                         fid = bug_finding.get("id", id(bug_finding))
@@ -545,7 +547,7 @@ def detect_disagreement(findings):
                             sup["eliminated_by"] = "suppressed:intentional"
                             sup["elimination_reason"] = (
                                 f"conventions-and-intent confirms behaviour at "
-                                f"{bug_finding.get('file', '?')}:{bug_finding.get('line', '?')} "
+                                f"{bug_finding.get('file', '?')}:{bug_finding.get('line_start', '?')} "
                                 f"is intentional"
                             )
                             suppressed.append(sup)
@@ -554,7 +556,7 @@ def detect_disagreement(findings):
         # Suppression rule 2: test-analyzer + conventions-and-intent → generated/scaffolding
         if _AGENT_TEST_ANALYZER in agent_map and _AGENT_CONVENTIONS in agent_map:
             for conv_finding in agent_map[_AGENT_CONVENTIONS]:
-                conv_text = (conv_finding.get("body", "") + " " + conv_finding.get("title", "")).lower()
+                conv_text = (conv_finding.get("description", "") + " " + conv_finding.get("title", "")).lower()
                 if re.search(r"\bgenerated\b|\bscaffolding\b|\bauto[-\s]?generated\b|\bboilerplate\b", conv_text):
                     for test_finding in agent_map[_AGENT_TEST_ANALYZER]:
                         fid = test_finding.get("id", id(test_finding))
@@ -564,7 +566,7 @@ def detect_disagreement(findings):
                             sup["eliminated_by"] = "suppressed:generated"
                             sup["elimination_reason"] = (
                                 f"conventions-and-intent confirms code at "
-                                f"{test_finding.get('file', '?')}:{test_finding.get('line', '?')} "
+                                f"{test_finding.get('file', '?')}:{test_finding.get('line_start', '?')} "
                                 f"is generated/scaffolding"
                             )
                             suppressed.append(sup)
@@ -579,7 +581,7 @@ def detect_disagreement(findings):
     consensus_groups = {}
     for finding in active:
         file_ = finding.get("file", "")
-        line = _line_bucket(finding.get("line", 0))
+        line = _line_bucket(finding.get("line_start", 0))
         title_key = re.sub(r"\s+", " ", finding.get("title", "")).lower()[:40]
         group_key = (file_, line, title_key)
         consensus_groups.setdefault(group_key, []).append(finding)
@@ -610,7 +612,7 @@ def detect_disagreement(findings):
     # -----------------------------------------------------------------------
     location_groups_active = {}
     for finding in active:
-        key = (finding.get("file", ""), finding.get("line", 0))
+        key = (finding.get("file", ""), finding.get("line_start", 0))
         location_groups_active.setdefault(key, []).append(finding)
 
     for key, group in location_groups_active.items():
@@ -723,8 +725,8 @@ def _is_test_correctness_finding(finding):
     or a test that should be written?"
     """
     title = finding.get("title", "")
-    body = finding.get("body", "")
-    combined = f"{title}\n{body}"
+    description = finding.get("description", "")
+    combined = f"{title}\n{description}"
 
     for pattern in _TEST_CORRECTNESS_PATTERNS:
         if pattern.search(combined):
@@ -757,12 +759,12 @@ def _dedup_test_analyzer(findings):
         else:
             other_findings.append(f)
 
-    # Build a lookup of (file, line) for non-test-analyzer findings
-    # Key: file path; value: set of line numbers
+    # Build a lookup of (file, line_start) for non-test-analyzer findings
+    # Key: file path; value: list of line numbers
     other_location_map = {}
     for f in other_findings:
         fpath = f.get("file", "")
-        line = f.get("line", 0)
+        line = f.get("line_start", 0)
         try:
             line = int(line)
         except (TypeError, ValueError):
@@ -774,7 +776,7 @@ def _dedup_test_analyzer(findings):
 
     for tf in test_findings:
         fpath = tf.get("file", "")
-        line = tf.get("line", 0)
+        line = tf.get("line_start", 0)
         try:
             line = int(line)
         except (TypeError, ValueError):
@@ -852,7 +854,7 @@ def tag_findings(findings):
 
     for finding in findings:
         agent = finding.get("agent", "").lower()
-        dimensions = {d.lower() for d in finding.get("dimensions", [])}
+        dimensions = {finding.get("dimension", "").lower()} if finding.get("dimension") else set()
 
         if agent in _MAIN_REPORT_AGENTS:
             destination = "main"
@@ -952,8 +954,8 @@ def apply_exclusions(findings, exclusion_patterns):
 
     for finding in findings:
         title = finding.get("title", "")
-        body = finding.get("body", "")
-        combined = f"{title}\n{body}"
+        description = finding.get("description", "")
+        combined = f"{title}\n{description}"
 
         matched_pattern = None
         for pattern in exclusion_patterns:
