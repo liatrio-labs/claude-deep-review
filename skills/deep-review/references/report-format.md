@@ -29,6 +29,30 @@ For self-hosted instances, replace the hostname with the one detected from the g
 
 ---
 
+## Finding Fields Reference
+
+Each finding produced by the review pipeline has these fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | string | yes | Unique ID, e.g. `bug-1`, `sec-2` |
+| `dimension` | string | yes | Review dimension (bug, security, cross-file, etc.) |
+| `severity` | string | yes | `critical`, `high`, `medium`, or `low` |
+| `confidence` | number | yes | 0-100 confidence score |
+| `file` | string | yes | Relative file path |
+| `line_start` | number | yes | Starting line number |
+| `line_end` | number | yes | Ending line number |
+| `title` | string | yes | One-line summary |
+| `description` | string | yes | Detailed explanation |
+| `evidence` | string | yes | Code snippet or behavior demonstrating the issue |
+| `suggestion` | string | yes | Prose fix or improvement advice |
+| `suggested_fix_code` | string | no | Direct code replacement for `file:line_start-line_end`. When present, `post_review.py` renders it as a GitHub/GitLab `suggestion` block (one-click apply). Null when the agent has no concrete fix to propose. |
+| `cross_file_refs` | array | no | Other files involved in the finding |
+
+**`suggested_fix_code` usage:** Agents that can propose an exact code replacement populate this field with the replacement source code. Agents that cannot (e.g., the fix is architectural or requires user judgment) leave it null. The field is rendered by `scripts/post_review.py` as a committable suggestion block in PR comments -- see `references/delivery-guide.md` for the full delivery JSON schema.
+
+---
+
 ## Full Report Template
 
 ```markdown
@@ -82,6 +106,11 @@ Example: "This PR adds JWT-based authentication to the API layer. The token vali
 
 **Suggested fix:**
 {finding.suggestion}
+
+{If finding.suggested_fix_code is present — render as a committable suggestion block:}
+```suggestion
+{finding.suggested_fix_code}
+```
 
 ---
 
@@ -223,6 +252,13 @@ When posting inline comments at specific lines:
 **Suggested fix:**
 {suggestion}
 
+[If suggested_fix_code is present — append a committable suggestion block:]
+```suggestion
+{suggested_fix_code}
+```
+
 ---
 *Confidence: {confidence}% | deep-review*
 ```
+
+**`suggested_fix_code` field:** Optional. When an agent can propose a direct code replacement for the lines at `finding.file:line_start-line_end`, it populates `suggested_fix_code` with the replacement code. The `scripts/post_review.py` delivery script renders this as a GitHub `suggestion` block (one-click apply) or GitLab suggestion. When null or absent, only the prose `suggestion` field is shown. See `references/delivery-guide.md` for the findings JSON schema used by `post_review.py`.

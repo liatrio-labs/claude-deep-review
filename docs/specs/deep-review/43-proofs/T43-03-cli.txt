@@ -1,0 +1,29 @@
+Type: cli
+Description: Verify post_review.py compiles and render_comment_body handles both cases (with and without suggested_fix_code)
+Command: python3 inline test
+Expected: With suggested_fix_code renders suggestion block; without it renders clean body
+Timestamp: 2026-03-31T03:49:32Z
+
+--- Output ---
+=== Test 1: WITH suggested_fix_code ===
+**🟠 [HIGH] SQL injection risk**
+
+User input concatenated into SQL.
+
+```suggestion
+const q = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+```
+
+=== Test 2: WITHOUT suggested_fix_code ===
+**🟡 [MEDIUM] Missing null check**
+
+Variable could be null here.
+
+=== Test 3: NULL suggested_fix_code ===
+**💡 [LOW] Consider caching**
+
+Repeated computation.
+
+All 3 test cases PASS
+
+Status: PASS

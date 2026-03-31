@@ -1,0 +1,19 @@
+Type: file
+Description: Verify post_review.py already renders suggested_fix_code as GitHub suggestion block
+Command: grep -n 'suggested_fix_code\|suggestion' scripts/post_review.py
+Expected: suggested_fix_code is read from finding and rendered as suggestion block
+Timestamp: 2026-03-31T03:49:23Z
+
+--- Output ---
+
+
+--- Analysis ---
+Line 19: documented in input schema docstring
+Line 241: read from finding dict via .get() with empty string default
+Line 245-251: conditional rendering as suggestion block when non-empty
+Line 248: uses ```suggestion fence format for GitHub one-click apply
+Line 249: strips trailing newlines for clean formatting
+
+The field is optional — null/absent findings simply skip the block (line 245 checks truthiness).
+
+Status: PASS

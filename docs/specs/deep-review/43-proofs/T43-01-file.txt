@@ -1,0 +1,23 @@
+Type: file
+Description: Verify suggested_fix_code field added to report-format.md Finding Fields Reference table
+Command: grep -n 'suggested_fix_code' skills/deep-review/references/report-format.md
+Expected: Field appears in Finding Fields Reference table and in template sections
+Timestamp: 2026-03-31T03:49:18Z
+
+--- Output ---
+49:| `suggested_fix_code` | string | no | Direct code replacement for `file:line_start-line_end`. When present, `post_review.py` renders it as a GitHub/GitLab `suggestion` block (one-click apply). Null when the agent has no concrete fix to propose. |
+52:**`suggested_fix_code` usage:** Agents that can propose an exact code replacement populate this field with the replacement source code. Agents that cannot (e.g., the fix is architectural or requires user judgment) leave it null. The field is rendered by `scripts/post_review.py` as a committable suggestion block in PR comments -- see `references/delivery-guide.md` for the full delivery JSON schema.
+110:{If finding.suggested_fix_code is present — render as a committable suggestion block:}
+112:{finding.suggested_fix_code}
+255:[If suggested_fix_code is present — append a committable suggestion block:]
+257:{suggested_fix_code}
+264:**`suggested_fix_code` field:** Optional. When an agent can propose a direct code replacement for the lines at `finding.file:line_start-line_end`, it populates `suggested_fix_code` with the replacement code. The `scripts/post_review.py` delivery script renders this as a GitHub `suggestion` block (one-click apply) or GitLab suggestion. When null or absent, only the prose `suggestion` field is shown. See `references/delivery-guide.md` for the findings JSON schema used by `post_review.py`.
+
+--- Analysis ---
+Line 49: Field is in the Finding Fields Reference table with type=string, required=no, description referencing post_review.py suggestion block
+Line 52: Expanded usage explanation noting agents populate or leave null
+Line 110-113: Shown in Critical Issues template as optional suggestion block
+Line 255-258: Shown in Inline PR Comment Format template
+Line 264: Full documentation paragraph about the field
+
+Status: PASS
