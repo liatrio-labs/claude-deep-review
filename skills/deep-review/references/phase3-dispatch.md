@@ -86,3 +86,21 @@ The agent definition (in `agents/{dimension}.md`) handles: agent role, instructi
 ## Agent Failure Handling
 
 If a subagent fails (crash, timeout, error): continue with completed agents, log the failure in Review Methodology, warn the user if the failed agent covered security or bugs. Never silently skip a failed agent.
+
+---
+
+## Prompt Caching
+
+To optimize token usage and reduce latency when dispatching multiple agents in Phase 3:
+
+1. **Cache agent definitions** — Each named subagent definition (in `agents/{dimension}.md`) is static and reusable across reviews. Pre-load and cache these definitions before dispatching agents.
+
+2. **Cache project context** — CLAUDE.md and REVIEW.md rules do not change within a session. Include these as cached context blocks in the initial agent prompt.
+
+3. **Cache code context** — The full codebase context and file risk classifications are stable during Phase 3. When possible, reuse cached diff blocks across multiple agent dispatches to avoid redundant token consumption.
+
+4. **Per-agent prompt variations** — While agent definitions and project rules are cached, scoped diffs and risk classification details may vary per agent. Only the dynamic portions (scoped per-agent diff) should be provided as fresh context in each Agent() call.
+
+5. **Verification** — After dispatch, confirm that cached context blocks were applied by checking the cache metrics in agent response metadata (if available).
+
+**Note:** Prompt caching is transparent to the agent dispatch protocol above — the Agent() call structure remains unchanged. Caching optimization is an orchestrator-level concern and does not affect how agents receive or process their input prompts.
