@@ -194,6 +194,20 @@ Read `references/delivery-guide.md` for PR comment API implementation (batched r
 
 ---
 
+## Rate Limit Recovery
+
+When API rate limits are encountered during any phase:
+
+1. **Detection** — The orchestrator or subagent will receive a 429 rate limit error.
+2. **Graceful pause** — Stop agent dispatch and wait according to the response's Retry-After header (default 60 seconds).
+3. **Resume from checkpoint** — After waiting, resume the phase that was interrupted. Do not restart from Phase 1.
+4. **Batch reduction** — If rate limits persist, reduce batch sizes (Phase 3: dispatch 2-3 agents instead of all; Phase 5/7: reduce validation/challenge batches by 50%).
+5. **User notification** — If recovery extends beyond 5 minutes, notify the user with estimated time remaining and option to cancel the review.
+
+Rate limit recovery is transparent to the user when under 60 seconds. Extended waits (>2 minutes) warrant a status update.
+
+---
+
 ## Critical Rules (end-of-file reinforcement)
 
 These are the rules most likely to be violated. Re-read before each phase transition:
