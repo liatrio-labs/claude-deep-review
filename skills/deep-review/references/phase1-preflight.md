@@ -1,6 +1,6 @@
 # Phase 1 Pre-Flight Reference
 
-Full eligibility logic, AskUserQuestion templates, and MANDATORY GATE details for Phase 1.
+Full eligibility logic, AskUserQuestion templates, and consolidated pre-flight configuration gate for Phase 1.
 
 ---
 
@@ -59,53 +59,94 @@ Full eligibility logic, AskUserQuestion templates, and MANDATORY GATE details fo
 
 ---
 
-## Review Mode Selection — MANDATORY GATE
+## Pre-Flight Configuration Gate
 
-> **STOP: Complete this step before Phase 2.** Do not skip or assume a default — this includes preferences remembered from prior sessions or memory. Preferences change between reviews; asking takes 5 seconds, a wrong assumption wastes the entire review. If you have a remembered preference, pre-select it as "(Recommended based on last session)" but still ask.
+> **STOP: Complete this gate before Phase 2.** Do not skip or assume defaults — this includes preferences remembered from prior sessions or memory. Preferences change between reviews; asking takes 5 seconds, a wrong assumption wastes the entire review.
 
-1. **Quick-check root REVIEW.md** for an explicitly set `model_tier` value (not a comment or example). If found, use it and note: "Review mode: [mode] (from REVIEW.md)"
-2. **If no `model_tier` set**, prompt:
-   ```
-   AskUserQuestion(
-     questions: [{
-       question: "Which review mode?",
-       header: "Review Mode",
-       multiSelect: false,
-       options: [
-         { label: "Optimized (Recommended)", description: "Sonnet for most agents, Opus for security. Faster and ~40% cheaper." },
-         { label: "Frontier", description: "All Opus agents. Maximum depth for high-stakes reviews." }
-       ]
-     }]
-   )
-   ```
+### Resolution logic
 
-Confirm the selected mode in output before continuing.
+1. **Quick-check root REVIEW.md** for `model_tier` and `default_delivery`. Only explicitly set values count (not comments or examples).
+2. **Build a questions array** containing only the items not already resolved by REVIEW.md:
 
----
+| Config key | Resolved when | Question if unresolved |
+|---|---|---|
+| `model_tier` | REVIEW.md sets it explicitly | Review mode question (see template below) |
+| `default_delivery` | REVIEW.md sets it explicitly | Delivery preference question (see template below) |
+| REVIEW.md presence | REVIEW.md exists in repo root | REVIEW.md setup question (see template below) |
 
-## Delivery Preference — MANDATORY GATE
+3. **Dispatch based on how many questions remain:**
 
-> **STOP: Complete this step before Phase 2.** Same rationale as above — always ask, even with remembered preferences.
+| Unresolved count | Action |
+|---|---|
+| **0** | No AskUserQuestion. Print confirmation: "Using [mode], delivering via [method] (from REVIEW.md)." |
+| **1-3** | Single AskUserQuestion with all unresolved items in the `questions` array. |
 
-1. **Quick-check root REVIEW.md** for `default_delivery` (e.g., `default_delivery: chat,pr_comments`). If found, use it.
-2. **If no `default_delivery` set**, prompt:
-   ```
-   AskUserQuestion(
-     questions: [{
-       question: "How should I deliver the review results?",
-       header: "Delivery",
-       multiSelect: true,
-       options: [
-         { label: "Chat (Recommended)", description: "Full report in the conversation" },
-         { label: "PR comments", description: "Inline comments on the PR" },
-         { label: "Markdown file", description: "Save as deep-review-{date}.md" }
-       ]
-     }]
-   )
-   ```
-   When the review target is local changes (not a PR/MR), omit the "PR comments" option.
+### Question templates
 
-Store the delivery selection for Phase 8. Confirm in output before continuing.
+**Review mode** (when `model_tier` not set in REVIEW.md):
+```
+{
+  question: "Which review mode?",
+  header: "Review Mode",
+  multiSelect: false,
+  options: [
+    { label: "Optimized (Recommended)", description: "Sonnet for most agents, Opus for security. Faster and ~40% cheaper." },
+    { label: "Frontier", description: "All Opus agents. Maximum depth for high-stakes reviews." }
+  ]
+}
+```
+
+**Delivery preference** (when `default_delivery` not set in REVIEW.md):
+```
+{
+  question: "How should I deliver the review results?",
+  header: "Delivery",
+  multiSelect: true,
+  options: [
+    { label: "Chat (Recommended)", description: "Full report in the conversation" },
+    { label: "PR comments", description: "Inline comments on the PR" },
+    { label: "Markdown file", description: "Save as deep-review-{date}.md" }
+  ]
+}
+```
+When the review target is local changes (not a PR/MR), omit the "PR comments" option.
+
+**REVIEW.md setup** (only when no REVIEW.md found in repo root):
+```
+{
+  question: "No REVIEW.md found. Want to create one? It pre-configures review settings so you get zero questions next time.",
+  header: "REVIEW.md Setup",
+  multiSelect: false,
+  options: [
+    { label: "Skip for now", description: "Continue without REVIEW.md" },
+    { label: "Create one after review", description: "I'll offer to generate it at the end" }
+  ]
+}
+```
+
+### Combined call example (worst case — nothing pre-configured, no REVIEW.md):
+
+```
+AskUserQuestion(
+  questions: [
+    { question: "Which review mode?", header: "Review Mode", multiSelect: false, options: [
+        { label: "Optimized (Recommended)", description: "Sonnet for most agents, Opus for security. Faster and ~40% cheaper." },
+        { label: "Frontier", description: "All Opus agents. Maximum depth for high-stakes reviews." }
+    ]},
+    { question: "How should I deliver the review results?", header: "Delivery", multiSelect: true, options: [
+        { label: "Chat (Recommended)", description: "Full report in the conversation" },
+        { label: "PR comments", description: "Inline comments on the PR" },
+        { label: "Markdown file", description: "Save as deep-review-{date}.md" }
+    ]},
+    { question: "No REVIEW.md found. Want to create one?", header: "REVIEW.md Setup", multiSelect: false, options: [
+        { label: "Skip for now", description: "Continue without REVIEW.md" },
+        { label: "Create one after review", description: "I'll offer to generate it at the end" }
+    ]}
+  ]
+)
+```
+
+Store the delivery selection for Phase 8. Confirm all resolved settings in output before continuing.
 
 ---
 

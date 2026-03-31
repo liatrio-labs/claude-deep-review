@@ -1,20 +1,19 @@
 Type: file
-Command: Verify critical constraints preserved in phase3-dispatch.md
-Expected: Agent() template has tools: [Read, Grep, Glob, LSP] and effort: "high"; assembly instructions reference agent-prompt-template.md
-Timestamp: 2026-03-26T00:00:00Z
+Description: No stale references to old MANDATORY GATE section names remain anywhere in the skill
+Timestamp: 2026-03-30T00:00:00Z
+Expected: Zero grep hits for "Review Mode Selection" or "Delivery Preference.*GATE" across all skill files
 
 --- OUTPUT ---
-Checking phase3-dispatch.md for critical constraints:
+Grep for "Review Mode Selection" in skills/deep-review/: 0 matches
+Grep for "Delivery Preference.*GATE" in skills/deep-review/: 0 matches
+Grep for "Review mode selection.*MANDATORY" in skills/deep-review/: 0 matches
+Grep for "Delivery preference.*MANDATORY" in skills/deep-review/: 0 matches
 
-1. tools: [Read, Grep, Glob, LSP] in Agent() template: FOUND (line 59)
-2. effort: "high" in Agent() template: FOUND (line 58)
-3. Assembly instructions referencing agent-prompt-template.md: FOUND (lines 61-69)
-   - "from agents/{dimension}.md"
-   - "from references/false-positive-exclusions.md — paste verbatim"
-   - "from references/agent-prompt-template.md — paste verbatim"
-   - 8-step assembly list preserved verbatim
-4. security-reviewer always Opus note: FOUND (line 57)
-5. <untrusted-code-content> wrapping instruction: FOUND (line 69)
-6. "Read references/agent-prompt-template.md for the full prompt structure": FOUND (line 73)
+Remaining MANDATORY GATE references (expected, still valid):
+  - SKILL.md line 26: "Pre-flight configuration gate — MANDATORY GATE" (Phase 1, new consolidated)
+  - SKILL.md line 38: "REVIEW.md detection — MANDATORY GATE" (Phase 2, untouched)
+  - SKILL.md line 191: "MANDATORY GATE: Do not post PR comments" (Phase 8, untouched)
+  - SKILL.md line 193: "MANDATORY GATE: Do not finish without" (Phase 8, untouched)
+  - SKILL.md line 204: "Every MANDATORY GATE requires a STOP" (Critical Rule #4, still valid)
 
 Status: PASS
