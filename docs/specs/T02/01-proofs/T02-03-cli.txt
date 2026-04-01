@@ -1,0 +1,13 @@
+Type: cli
+Command: grep -n 'exclude-dir' scripts/verify_findings.py
+Expected: matches showing excluded directories
+Timestamp: 2026-03-31T00:00:00Z
+Status: PASS
+
+--- Output ---
+496:             "--exclude-dir=.git", "--exclude-dir=node_modules",
+497:             "--exclude-dir=vendor", "--exclude-dir=__pycache__",
+498:             "--exclude-dir=dist", "--exclude-dir=build",
+499:             "--exclude-dir=.next", "--exclude-dir=target",
+
+Exit code: 0

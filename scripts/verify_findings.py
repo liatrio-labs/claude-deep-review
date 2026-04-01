@@ -492,10 +492,15 @@ def verify_factual(finding):
 
         # Run grep to find the symbol anywhere in the codebase
         stdout, _stderr, rc = run(
-            ["grep", "-rn", "--include=*.py", "-l", symbol, "."]
+            ["grep", "-rn",
+             "--exclude-dir=.git", "--exclude-dir=node_modules",
+             "--exclude-dir=vendor", "--exclude-dir=__pycache__",
+             "--exclude-dir=dist", "--exclude-dir=build",
+             "--exclude-dir=.next", "--exclude-dir=target",
+             "-l", symbol, "."]
         )
         if rc != 0 or not stdout.strip():
-            # Symbol not found in any Python file — note it but don't eliminate
+            # Symbol not found in codebase — note it but don't eliminate
             missing_symbols.append(symbol)
 
     # Record factual verification result
