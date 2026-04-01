@@ -40,35 +40,7 @@ If the listing succeeds, `plugin_root` is correct. All subsequent `python3` invo
 
 ### Resolve review target
 
-The user's input determines the review target. Parse it before eligibility checks — the target type affects every subsequent step.
-
-**Input → target resolution (check in this order):**
-
-1. **User passed a PR/MR number** (e.g., `/deep-review 42`, `review PR 42`, `review #42`) → **PR/MR mode**. Store the number as `pr_number`. Use this number for all `gh pr` / `glab mr` commands. Do NOT extract numbers from branch names — the branch name may contain the upstream PR number which differs from the PR number in the current repo.
-2. **User passed a URL** (e.g., `github.com/.../pull/42`) → **PR/MR mode**. Extract `pr_number` from the URL path.
-3. **User said "review" with no number/URL** and a PR/MR exists for the current branch → **PR/MR mode**. Use `gh pr view --json number --jq '.number'` to get the number for the current branch.
-4. **No PR/MR found** → **Local changes mode**. Review uncommitted changes or branch diff.
-
-**Validation:** After resolving to PR/MR mode, verify the PR/MR exists by running `gh pr view {pr_number}` (or `glab mr view`). If the command fails, do NOT silently fall back to local mode — ask the user:
-
-```
-AskUserQuestion(
-  questions: [{
-    question: "Could not find PR #{pr_number} on this repository. The PR may not exist, or the number may be wrong. How should I proceed?",
-    header: "PR Not Found",
-    multiSelect: false,
-    options: [
-      { label: "Proceed as local review", description: "Review the branch diff without PR integration (no PR comments)" },
-      { label: "Try a different number", description: "I'll provide the correct PR number" },
-      { label: "Cancel", description: "Stop the review" }
-    ]
-  }]
-)
-```
-
-If the user provides a different number, re-resolve with the corrected value. If they choose local review, set `target_type` to `local` and clear `pr_number`.
-
-Store the resolved `target_type` (`pr`, `mr`, or `local`) and `pr_number` (if applicable) for use in all subsequent phases.
+Parse the user's input to determine the review target before eligibility checks — the target type affects every subsequent step. Store `target_type` (`pr`, `mr`, or `local`) and `pr_number` (if applicable). Do NOT extract PR numbers from branch names — use only the user's explicit input. See `references/phase1-preflight.md` for resolution logic, validation, and the PR-not-found template.
 
 ### Eligibility checks
 
