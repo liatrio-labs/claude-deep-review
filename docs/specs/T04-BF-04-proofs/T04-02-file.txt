@@ -1,0 +1,24 @@
+Type: file
+Path: skills/deep-review/SKILL.md
+Description: SKILL.md Phase 1 gate description and Phase 2 entry check
+Timestamp: 2026-03-31T00:00:00Z
+Status: PASS
+
+Verification:
+  BF-04.3 — Phase 1 gate description updated to reflect unconditional AskUserQuestion: PASS
+    Old: "If REVIEW.md pre-configures both, the user gets zero questions — just a confirmation line."
+    New: "If REVIEW.md pre-configures both, present a single confirmation question — never skip AskUserQuestion entirely."
+    Also updated: "containing the unresolved items" (removed "only") and added "confirmation-only template" reference.
+
+  BF-04.4 — Phase 2 entry check added: PASS
+    New blockquote at top of Phase 2 section:
+    "> **Entry check:** If no `AskUserQuestion` was presented during Phase 1, STOP — the configuration gate was missed. Return to Phase 1 and complete it before proceeding."
+
+Evidence (Phase 1 gate, SKILL.md):
+  Check REVIEW.md for `model_tier` and `default_delivery`. Build a single `AskUserQuestion` containing
+  the unresolved items (review mode, delivery preference, REVIEW.md setup if missing). If REVIEW.md
+  pre-configures both, present a single confirmation question — never skip AskUserQuestion entirely.
+
+Evidence (Phase 2 entry check, SKILL.md):
+  > **Entry check:** If no `AskUserQuestion` was presented during Phase 1, STOP — the configuration
+  gate was missed. Return to Phase 1 and complete it before proceeding.

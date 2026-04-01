@@ -78,7 +78,7 @@ Full eligibility logic, AskUserQuestion templates, and consolidated pre-flight c
 
 | Unresolved count | Action |
 |---|---|
-| **0** | No AskUserQuestion. Print confirmation: "Using [mode], delivering via [method] (from REVIEW.md)." |
+| **0** | Still present AskUserQuestion with a single confirmation question (see "Confirmation-only template" below). Never skip — Phase 2 checks that AskUserQuestion was called. |
 | **1-3** | Single AskUserQuestion with all unresolved items in the `questions` array. |
 
 ### Question templates
@@ -123,6 +123,24 @@ When the review target is local changes (not a PR/MR), omit the "PR comments" op
   ]
 }
 ```
+
+### Confirmation-only template (when REVIEW.md pre-configures both `model_tier` and `default_delivery`):
+
+```
+AskUserQuestion(
+  questions: [{
+    question: "Ready to start. REVIEW.md configured: [mode] mode, delivering via [method]. Proceed?",
+    header: "Review Configuration",
+    multiSelect: false,
+    options: [
+      { label: "Yes — start review", description: "Proceed with the configured settings" },
+      { label: "No — change settings", description: "I'll answer the full configuration questions instead" }
+    ]
+  }]
+)
+```
+
+If "No — change settings": clear REVIEW.md-resolved values and re-run the gate with all three questions (mode, delivery, REVIEW.md setup).
 
 ### Combined call example (worst case — nothing pre-configured, no REVIEW.md):
 

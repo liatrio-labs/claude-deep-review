@@ -27,11 +27,13 @@ Inline checks before any review work — no subagent dispatch. Read `references/
 
 > **STOP: Complete this gate before Phase 2.** Never assume defaults from remembered preferences.
 
-Check REVIEW.md for `model_tier` and `default_delivery`. Build a single `AskUserQuestion` containing only the unresolved items (review mode, delivery preference, REVIEW.md setup if missing). If REVIEW.md pre-configures both, the user gets zero questions — just a confirmation line. See `references/phase1-preflight.md` for resolution logic and question templates. Store selections for Phase 8.
+Check REVIEW.md for `model_tier` and `default_delivery`. Build a single `AskUserQuestion` containing the unresolved items (review mode, delivery preference, REVIEW.md setup if missing). If REVIEW.md pre-configures both, present a single confirmation question — never skip AskUserQuestion entirely. See `references/phase1-preflight.md` for resolution logic, question templates, and the confirmation-only template. Store selections for Phase 8.
 
 ---
 
 ## Phase 2: Target & Triage
+
+> **Entry check:** If no `AskUserQuestion` was presented during Phase 1, STOP — the configuration gate was missed. Return to Phase 1 and complete it before proceeding.
 
 Identify the review target and gather all context needed for agent dispatch. Fast pass in the main context (not a subagent). Read `references/phase2-triage.md` for all 12 sub-steps (2a–2l), Agent templates, and detection logic.
 
