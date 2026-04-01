@@ -11,7 +11,7 @@ After all agents return, process their findings through the validation pipeline 
 Handled by `scripts/verify_findings.py`. Run it against the merged Phase 3 agent output before dispatching Phase 5 validators.
 
 ```
-python3 scripts/verify_findings.py <findings_json> [--base-branch main] [--diff-file path]
+python3 {plugin_root}/scripts/verify_findings.py <findings_json> [--base-branch main] [--diff-file path]
 ```
 
 **Input JSON schema:**
@@ -169,7 +169,7 @@ Re-dispatch or degrade transparently. Orchestrator judgment is not a substitute 
 Handled by `scripts/filter_findings.py`. Run it against the Phase 5 validated findings before the Phase 7 blind challenge.
 
 ```
-python3 scripts/filter_findings.py <findings_json> [--review-md path] [--exclusions-md path]
+python3 {plugin_root}/scripts/filter_findings.py <findings_json> [--review-md path] [--exclusions-md path]
 ```
 
 **Input JSON schema:**

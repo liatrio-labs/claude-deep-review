@@ -1,0 +1,35 @@
+Type: file
+Description: Verify all {plugin_base} and {skill_base} script references replaced with {plugin_root}
+Timestamp: 2026-03-31T00:00:00Z
+
+Command: grep -rn "plugin_base|skill_base" skills/deep-review/
+
+Expected: No matches (all replaced with {plugin_root})
+Result: No matches found
+
+Status: PASS
+
+---
+
+Command: grep -n "plugin_root" skills/deep-review/SKILL.md skills/deep-review/references/validation-pipeline.md skills/deep-review/references/phase8-delivery.md skills/deep-review/references/delivery-guide.md
+
+Output:
+skills/deep-review/references/delivery-guide.md:41:python3 {plugin_root}/scripts/post_review.py <findings_json_path>
+skills/deep-review/references/delivery-guide.md:109:python3 {plugin_root}/scripts/post_review.py "$TMPDIR/deep-review-findings.json"
+skills/deep-review/SKILL.md:21:The skill file lives at `skills/deep-review/SKILL.md` inside the plugin directory. Scripts (`scripts/`) and agents (`agents/`) live at the plugin root — two levels above `skills/deep-review/`. Resolve the plugin root once at the start of Phase 1 and store it as `plugin_root` for use in all subsequent phases.
+skills/deep-review/SKILL.md:27:plugin_root = dirname(dirname(skill_dir))      # …/ (plugin root)
+skills/deep-review/SKILL.md:32:Bash(command="ls {plugin_root}/scripts/ {plugin_root}/agents/")
+skills/deep-review/SKILL.md:35:If the listing succeeds, `plugin_root` is correct. All subsequent `python3` invocations use `{plugin_root}/scripts/` as the prefix:
+skills/deep-review/SKILL.md:37:- Phase 4: `python3 {plugin_root}/scripts/verify_findings.py`
+skills/deep-review/SKILL.md:38:- Phase 6: `python3 {plugin_root}/scripts/filter_findings.py`
+skills/deep-review/SKILL.md:39:- Phase 8: `python3 {plugin_root}/scripts/post_review.py`
+skills/deep-review/SKILL.md:93:python3 {plugin_root}/scripts/verify_findings.py findings.json \
+skills/deep-review/SKILL.md:146:python3 {plugin_root}/scripts/filter_findings.py phase5_output.json \
+skills/deep-review/references/validation-pipeline.md:14:python3 {plugin_root}/scripts/verify_findings.py <findings_json> [--base-branch main] [--diff-file path]
+skills/deep-review/references/validation-pipeline.md:172:python3 {plugin_root}/scripts/filter_findings.py <findings_json> [--review-md path] [--exclusions-md path]
+skills/deep-review/references/phase8-delivery.md:86:python3 {plugin_root}/scripts/post_review.py "$TMPDIR/deep-review-findings.json"
+
+All 5 targeted files contain {plugin_root}/scripts/ references.
+No {plugin_base} or {skill_base}/scripts/ references remain.
+
+Status: PASS

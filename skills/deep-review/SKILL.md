@@ -16,6 +16,28 @@ Concern-parallel agents with context-pulling and deterministic verification. Whe
 
 Inline checks before any review work — no subagent dispatch. Read `references/phase1-preflight.md` for full templates.
 
+### Plugin root path resolution — resolve once, use everywhere
+
+The skill file lives at `skills/deep-review/SKILL.md` inside the plugin directory. Scripts (`scripts/`) and agents (`agents/`) live at the plugin root — two levels above `skills/deep-review/`. Resolve the plugin root once at the start of Phase 1 and store it as `plugin_root` for use in all subsequent phases.
+
+**Resolution:** Claude Code provides the absolute path to this SKILL.md when invoking the skill (e.g., `/Users/alice/.claude/plugins/cache/claude-deep-review/1.0.0/skills/deep-review/SKILL.md`). Take that path, strip the filename, then go up two more directories:
+
+```
+skill_dir  = dirname(SKILL.md path)           # …/skills/deep-review
+plugin_root = dirname(dirname(skill_dir))      # …/ (plugin root)
+```
+
+Confirm with a quick sanity check:
+```bash
+Bash(command="ls {plugin_root}/scripts/ {plugin_root}/agents/")
+```
+
+If the listing succeeds, `plugin_root` is correct. All subsequent `python3` invocations use `{plugin_root}/scripts/` as the prefix:
+
+- Phase 4: `python3 {plugin_root}/scripts/verify_findings.py`
+- Phase 6: `python3 {plugin_root}/scripts/filter_findings.py`
+- Phase 8: `python3 {plugin_root}/scripts/post_review.py`
+
 ### Eligibility checks
 
 1. **Closed/merged?** → Stop.
@@ -68,7 +90,7 @@ Phase 4 is deterministic — main orchestrator, no LLM agents. It classifies eac
 Run `scripts/verify_findings.py` with the Phase 3 findings JSON. The script handles blame classification, factual verification, diff-line validation, and batching deterministically.
 
 ```
-python3 {plugin_base}/scripts/verify_findings.py findings.json \
+python3 {plugin_root}/scripts/verify_findings.py findings.json \
   --base-branch {base_branch}
 ```
 
@@ -121,7 +143,7 @@ Main orchestrator, rules-based — no LLM agents. Apply threshold filtering, inj
 Run `scripts/filter_findings.py` with the Phase 5 output. The script handles threshold filtering, injection detection, disagreement resolution, and tagging.
 
 ```
-python3 {plugin_base}/scripts/filter_findings.py phase5_output.json \
+python3 {plugin_root}/scripts/filter_findings.py phase5_output.json \
   --review-md {repo_root}/REVIEW.md
 ```
 

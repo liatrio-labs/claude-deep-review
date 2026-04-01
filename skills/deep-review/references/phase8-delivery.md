@@ -83,7 +83,7 @@ with open(sys.argv[1], 'w') as f:
     json.dump(findings, f, ensure_ascii=False, indent=2)
 " "$TMPDIR/deep-review-findings.json"
 
-python3 {skill_base}/scripts/post_review.py "$TMPDIR/deep-review-findings.json"
+python3 {plugin_root}/scripts/post_review.py "$TMPDIR/deep-review-findings.json"
 """)
 ```
 

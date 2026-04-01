@@ -38,7 +38,7 @@ Severity emojis: 🔴 critical, 🟠 high, 🟡 medium, 💡 low.
 
 **Usage:**
 ```bash
-python3 {skill_base}/scripts/post_review.py <findings_json_path>
+python3 {plugin_root}/scripts/post_review.py <findings_json_path>
 ```
 
 **Findings JSON schema:**
@@ -106,7 +106,7 @@ with open(sys.argv[1], 'w') as f:
 " "$TMPDIR/deep-review-findings.json"
 
 # 2. Run script
-python3 {skill_base}/scripts/post_review.py "$TMPDIR/deep-review-findings.json"
+python3 {plugin_root}/scripts/post_review.py "$TMPDIR/deep-review-findings.json"
 """)
 ```
 
