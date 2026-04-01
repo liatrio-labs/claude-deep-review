@@ -1,0 +1,48 @@
+Type: file
+Check: Verify the 4 bug fixes are present in scripts/verify_findings.py
+Expected: REPO_ROOT constant, rc==2 guard in verify_factual, empty-string check in parse_diff_lines, dead branch removed in sha_in_pr
+Timestamp: 2026-03-31T00:00:00Z
+
+--- RF-01: REPO_ROOT constant added ---
+REPO_ROOT is defined at module level (after imports) and passed to grep.
+
+grep pattern: REPO_ROOT
+scripts/verify_findings.py contains:
+  REPO_ROOT = _resolve_repo_root()
+  ...grep call: ... REPO_ROOT]  (last arg is REPO_ROOT, not ".")
+
+--- RF-03: rc==2 guard in verify_factual ---
+grep_stderr is captured (not discarded as _stderr).
+rc==2 triggers warn() and continue (skips symbol check).
+rc==1 still appends to missing_symbols.
+
+grep pattern: rc == 2
+scripts/verify_findings.py contains:
+  stdout, grep_stderr, rc = run(...)
+  if rc == 2:
+      warn(f"verify_factual: grep I/O error ...")
+      continue
+
+--- RF-04: parse_diff_lines distinguishes None from empty string ---
+None check replaces "not diff_text" check.
+Empty string returns set() (not None).
+
+grep pattern: diff_text is None
+scripts/verify_findings.py contains:
+  if diff_text is None:
+      return None
+  (the empty-string case falls through to return set() from valid_lines)
+
+--- RF-05: sha_in_pr dead branch removed, parameter renamed ---
+dead branch: short_sha.startswith(full_sha) removed.
+parameter renamed from short_sha to blamed_sha.
+
+grep pattern: blamed_sha
+scripts/verify_findings.py contains:
+  def sha_in_pr(blamed_sha, pr_set):
+      for full_sha in pr_set:
+          if full_sha.startswith(blamed_sha):
+              return True
+      return False
+
+Status: PASS

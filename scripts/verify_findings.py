@@ -64,6 +64,31 @@ from datetime import datetime, timezone
 
 
 # ---------------------------------------------------------------------------
+# Repo root — resolved once at startup (RF-01)
+# ---------------------------------------------------------------------------
+
+def _resolve_repo_root():
+    """
+    Return the absolute path of the repository root.
+
+    Uses ``git rev-parse --show-toplevel`` and falls back to the directory
+    that contains this script so the module works even outside a git repo.
+    """
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    # Fallback: parent directory of this script file
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+REPO_ROOT = _resolve_repo_root()
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -124,8 +149,13 @@ def parse_diff_lines(diff_text):
     Parse a unified diff and return a set of (filepath, line_number) tuples
     representing lines present in the diff (added or context lines).
     Line numbers are from the new (head) version.
+
+    RF-04: Distinguishes two "nothing to parse" cases:
+    - ``None``  → diff retrieval failed; callers should skip validation entirely.
+    - ``""``    → diff retrieved successfully but is empty (e.g. no changes);
+                  callers should treat every finding as "surfaced" (not in diff).
     """
-    if not diff_text:
+    if diff_text is None:
         return None
 
     valid_lines = set()
@@ -314,9 +344,11 @@ def classify_blame(finding, base_branch):
 
     # A blamed SHA may be a short prefix; check if any blamed commit is a PR commit.
     # PR commits are full SHAs; blamed SHAs may be short (7+ chars).
-    def sha_in_pr(short_sha, pr_set):
+    # RF-05: removed unreachable branch ``blamed_sha.startswith(full_sha)`` —
+    # blamed_sha is always the shorter side, so only check full_sha.startswith(blamed_sha).
+    def sha_in_pr(blamed_sha, pr_set):
         for full_sha in pr_set:
-            if full_sha.startswith(short_sha) or short_sha.startswith(full_sha):
+            if full_sha.startswith(blamed_sha):
                 return True
         return False
 
@@ -490,16 +522,26 @@ def verify_factual(finding):
         if symbol in code_at_lines:
             continue
 
-        # Run grep to find the symbol anywhere in the codebase
-        stdout, _stderr, rc = run(
+        # Run grep to find the symbol anywhere in the codebase (RF-01: use REPO_ROOT)
+        stdout, grep_stderr, rc = run(
             ["grep", "-rn",
              "--exclude-dir=.git", "--exclude-dir=node_modules",
              "--exclude-dir=vendor", "--exclude-dir=__pycache__",
              "--exclude-dir=dist", "--exclude-dir=build",
              "--exclude-dir=.next", "--exclude-dir=target",
-             "-l", symbol, "."]
+             "-l", symbol, REPO_ROOT]
         )
+        # RF-03: rc=2 means grep encountered an I/O error (permission denied,
+        # binary file read, etc.).  Treat this as an inconclusive result and
+        # skip the symbol check rather than falsely zeroing confidence.
+        if rc == 2:
+            warn(
+                f"verify_factual: grep I/O error while searching for symbol "
+                f"'{symbol}': {grep_stderr.strip()} — skipping symbol check."
+            )
+            continue
         if rc != 0 or not stdout.strip():
+            # rc=1 means grep ran successfully but found no matches
             # Symbol not found in codebase — note it but don't eliminate
             missing_symbols.append(symbol)
 

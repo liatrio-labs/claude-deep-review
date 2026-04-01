@@ -28,6 +28,7 @@ from scripts.verify_findings import (
     verify_factual,
     validate_diff_lines,
     batch_findings,
+    REPO_ROOT,
 )
 
 
@@ -38,10 +39,13 @@ from scripts.verify_findings import (
 class TestParseDiffLines(unittest.TestCase):
     """Test unified diff parsing into (file, line) tuples."""
 
-    def test_empty_input(self):
-        self.assertIsNone(parse_diff_lines(""))
+    def test_empty_input_returns_empty_set(self):
+        # RF-04: empty diff string means diff was retrieved but has no content;
+        # return empty set so all findings are tagged "surfaced" (not skipped).
+        self.assertEqual(parse_diff_lines(""), set())
 
-    def test_none_input(self):
+    def test_none_input_returns_none(self):
+        # RF-04: None means diff retrieval failed; return None to skip validation.
         self.assertIsNone(parse_diff_lines(None))
 
     def test_added_lines(self):
@@ -622,6 +626,160 @@ class TestBatchFindings(unittest.TestCase):
         self.assertEqual(batches[0][0], "a2")
         self.assertEqual(batches[0][1], "a1")
         self.assertEqual(batches[0][2], "z1")
+
+
+# ---------------------------------------------------------------------------
+# RF-01: grep uses REPO_ROOT, not CWD
+# ---------------------------------------------------------------------------
+
+class TestRepoRoot(unittest.TestCase):
+    """REPO_ROOT is resolved at module load time and must be an absolute path."""
+
+    def test_repo_root_is_absolute(self):
+        self.assertTrue(os.path.isabs(REPO_ROOT))
+
+    def test_repo_root_is_directory(self):
+        self.assertTrue(os.path.isdir(REPO_ROOT))
+
+    def test_grep_called_with_repo_root(self):
+        """verify_factual must pass REPO_ROOT (not '.') as grep search path."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("def missing_func():\n    pass\n")
+            tmppath = f.name
+        try:
+            captured_cmds = []
+
+            def mock_run(cmd, check=False):
+                captured_cmds.append(cmd)
+                return ("", "", 1)  # symbol not found
+
+            with patch("scripts.verify_findings.run", side_effect=mock_run):
+                finding = {
+                    "file": tmppath,
+                    "line_start": 1,
+                    "line_end": 2,
+                    "description": "The `SomeClass` does bad things",
+                    "evidence": "",
+                }
+                verify_factual(finding)
+
+            grep_cmds = [c for c in captured_cmds if c[0] == "grep"]
+            self.assertTrue(grep_cmds, "Expected at least one grep call")
+            for cmd in grep_cmds:
+                # The search path (last arg) must not be "." — must be absolute
+                self.assertNotEqual(cmd[-1], ".", msg=f"grep called with '.' instead of REPO_ROOT: {cmd}")
+                self.assertTrue(os.path.isabs(cmd[-1]), msg=f"grep path is not absolute: {cmd[-1]}")
+        finally:
+            os.unlink(tmppath)
+
+
+# ---------------------------------------------------------------------------
+# RF-03: grep rc=2 skips symbol check instead of silently zeroing confidence
+# ---------------------------------------------------------------------------
+
+class TestVerifyFactualGrepError(unittest.TestCase):
+
+    def test_grep_rc2_skips_symbol_not_zeros_confidence(self):
+        """RF-03: grep exit code 2 (I/O error) must not add symbol to missing list."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("def my_func():\n    pass\n")
+            tmppath = f.name
+        try:
+            with patch("scripts.verify_findings.run") as mock_run:
+                # rc=2 simulates an I/O error from grep
+                mock_run.return_value = ("", "grep: permission denied", 2)
+                finding = {
+                    "file": tmppath,
+                    "line_start": 1,
+                    "line_end": 2,
+                    "description": "The `ExternalClass` causes issues",
+                    "evidence": "",
+                    "confidence": 75,
+                }
+                result = verify_factual(finding)
+                # Confidence must NOT be zeroed when grep returns rc=2
+                self.assertTrue(result)
+                self.assertEqual(finding.get("confidence", 75), 75)
+                # factual_verification should be verified=True (no missing symbols recorded)
+                self.assertTrue(finding["factual_verification"]["verified"])
+        finally:
+            os.unlink(tmppath)
+
+    def test_grep_rc1_still_records_missing_symbol(self):
+        """RF-03: grep exit code 1 (no match) must still flag the symbol as missing."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("def my_func():\n    pass\n")
+            tmppath = f.name
+        try:
+            with patch("scripts.verify_findings.run") as mock_run:
+                # rc=1 means grep ran successfully but found no match
+                mock_run.return_value = ("", "", 1)
+                finding = {
+                    "file": tmppath,
+                    "line_start": 1,
+                    "line_end": 2,
+                    "description": "The `MissingClass` is broken",
+                    "evidence": "",
+                    "confidence": 75,
+                }
+                result = verify_factual(finding)
+                # rc=1 must still zero confidence (symbol not found)
+                self.assertTrue(result)  # kept but degraded
+                self.assertEqual(finding["confidence"], 0)
+                self.assertFalse(finding["factual_verification"]["verified"])
+        finally:
+            os.unlink(tmppath)
+
+
+# ---------------------------------------------------------------------------
+# RF-05: sha_in_pr dead branch removed (tested via classify_blame)
+# ---------------------------------------------------------------------------
+
+class TestShaInPrDeadBranch(unittest.TestCase):
+    """RF-05: classify_blame must correctly match blamed (short) SHA against PR full SHAs."""
+
+    @patch("scripts.verify_findings.os.path.exists", return_value=True)
+    @patch("scripts.verify_findings.run")
+    def test_short_blamed_sha_matches_full_pr_sha(self, mock_run, _mock_exists):
+        """A 7-char blamed SHA should match when a full PR SHA starts with it."""
+        def run_side_effect(cmd, check=False):
+            if cmd[1] == "log":
+                return ("abc1234567890abcdef1234567890abcdef123456\n", "", 0)
+            if cmd[1] == "blame":
+                return ("abc1234 (Author 2026-03-30 10:00:00 +0000 1) code\n", "", 0)
+            return ("", "", 0)
+
+        mock_run.side_effect = run_side_effect
+        finding = {"file": "f.py", "line_start": 1, "line_end": 1, "severity": "high"}
+        result = classify_blame(finding, "main")
+        # abc1234 is a prefix of the PR commit — should be "new"
+        self.assertEqual(result, "new")
+
+    @patch("scripts.verify_findings.os.path.exists", return_value=True)
+    @patch("scripts.verify_findings.run")
+    def test_full_blamed_sha_does_not_match_short_pr_sha(self, mock_run, _mock_exists):
+        """A full blamed SHA should NOT match a shorter PR SHA (removed dead branch).
+
+        Before RF-05 the dead branch ``blamed_sha.startswith(full_sha)`` would
+        have caused a false-positive match when the 'full' PR SHA is actually
+        shorter than the blamed SHA.  After the fix, only full_sha.startswith
+        (blamed_sha) is checked, so this case must return 'surfaced'.
+        """
+        def run_side_effect(cmd, check=False):
+            if cmd[1] == "log":
+                # Simulate a short/truncated PR SHA (would only match via dead branch)
+                return ("abc123\n", "", 0)
+            if cmd[1] == "blame":
+                # Full-length blamed SHA that starts with abc123 — old dead branch
+                # would match; new code should NOT
+                return ("abc1234567890def (Author 2026-03-30 10:00:00 +0000 1) code\n", "", 0)
+            return ("", "", 0)
+
+        mock_run.side_effect = run_side_effect
+        finding = {"file": "f.py", "line_start": 1, "line_end": 1, "severity": "high"}
+        result = classify_blame(finding, "main")
+        # "abc123" does NOT start with "abc1234567890def" → surfaced
+        self.assertEqual(result, "surfaced")
 
 
 if __name__ == "__main__":
