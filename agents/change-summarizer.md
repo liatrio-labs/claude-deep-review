@@ -1,7 +1,7 @@
 ---
 name: change-summarizer
 description: Produces a concise semantic summary of PR/MR changes for shared context across all review agents
-tools:
+tools: none  # intentional — summarizer works from prompt context only
 effort: medium
 model: sonnet
 color: blue
