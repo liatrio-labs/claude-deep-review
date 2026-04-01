@@ -16,11 +16,11 @@ If detection fails, ask the user.
 
 ## 2b. Ensure Working Tree Reflects Review Target
 
-Before running any diff commands, confirm the local working tree matches the review target.
+Before running any diff commands, confirm the local working tree matches the review target. Use the `pr_number` resolved in Phase 1 — never extract PR numbers from branch names (branch names may contain upstream PR numbers that differ from the PR number in the current repo).
 
 **1. Resolve the target's head SHA:**
-- **PR/MR number or URL:** `gh pr view <number> --json headRefOid --jq '.headRefOid'` (GitHub) / `glab mr view <number> --output json | jq '.sha'` (GitLab)
-- **Branch name:** `git rev-parse <branch>`
+- **PR/MR mode (`pr_number` set):** `gh pr view {pr_number} --json headRefOid --jq '.headRefOid'` (GitHub) / `glab mr view {pr_number} --output json | jq '.sha'` (GitLab)
+- **Branch comparison:** `git rev-parse <branch>`
 - **Local changes:** HEAD — no-op, already on correct state
 
 **2. Compare against current HEAD:**
@@ -47,9 +47,11 @@ No fallback or workaround — a silently wrong working tree produces unreliable 
 
 ## 2c. Identify Review Target
 
-1. **PR/MR mode** — user provides a number/URL. Use `gh pr view`/`glab mr view` + diff commands. Get full SHA: `git rev-parse HEAD`
-   - **GitHub (PR):** Gather the file list with `gh pr diff {number} --name-only`. Gather the full diff with `gh pr diff {number}`.
-   - **GitLab (MR):** Gather the file list with `glab mr diff {number} --name-only`. Gather the full diff with `glab mr diff {number}`.
+Use `target_type` and `pr_number` from Phase 1's "Resolve review target" step. Do not re-derive the PR number here.
+
+1. **PR/MR mode** (`pr_number` set) — Use `gh pr view {pr_number}`/`glab mr view {pr_number}` + diff commands. Get full SHA: `git rev-parse HEAD`
+   - **GitHub (PR):** Gather the file list with `gh pr diff {pr_number} --name-only`. Gather the full diff with `gh pr diff {pr_number}`.
+   - **GitLab (MR):** Gather the file list with `glab mr diff {pr_number} --name-only`. Gather the full diff with `glab mr diff {pr_number}`.
 2. **Branch comparison** — `git diff <base>...HEAD` and `git diff --name-only <base>...HEAD`
 3. **Local changes** — `git diff HEAD` (or `git diff --cached` if nothing unstaged)
 

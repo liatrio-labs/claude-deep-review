@@ -38,6 +38,19 @@ If the listing succeeds, `plugin_root` is correct. All subsequent `python3` invo
 - Phase 6: `python3 {plugin_root}/scripts/filter_findings.py`
 - Phase 8: `python3 {plugin_root}/scripts/post_review.py`
 
+### Resolve review target
+
+The user's input determines the review target. Parse it before eligibility checks — the target type affects every subsequent step.
+
+**Input → target resolution (check in this order):**
+
+1. **User passed a PR/MR number** (e.g., `/deep-review 42`, `review PR 42`, `review #42`) → **PR/MR mode**. Store the number as `pr_number`. Use this number for all `gh pr` / `glab mr` commands. Do NOT extract numbers from branch names — the branch name may contain the upstream PR number which differs from the PR number in the current repo.
+2. **User passed a URL** (e.g., `github.com/.../pull/42`) → **PR/MR mode**. Extract `pr_number` from the URL path.
+3. **User said "review" with no number/URL** and a PR/MR exists for the current branch → **PR/MR mode**. Use `gh pr view --json number --jq '.number'` to get the number for the current branch.
+4. **No PR/MR found** → **Local changes mode**. Review uncommitted changes or branch diff.
+
+Store the resolved `target_type` (`pr`, `mr`, or `local`) and `pr_number` (if applicable) for use in all subsequent phases.
+
 ### Eligibility checks
 
 1. **Closed/merged?** → Stop.
