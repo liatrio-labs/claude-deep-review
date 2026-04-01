@@ -941,7 +941,7 @@ def load_exclusions(path):
 
 def apply_exclusions(findings, exclusion_patterns):
     """
-    Remove findings whose title or body matches an exclusion pattern.
+    Remove findings whose title or description matches an exclusion pattern.
 
     Returns (passed, eliminated) lists. Each eliminated finding gains
     "eliminated_by" = "exclusion".
@@ -1047,7 +1047,7 @@ def main():
     # ------------------------------------------------------------------
     # Load exclusions
     # ------------------------------------------------------------------
-    exclusion_patterns = load_exclusions(args.exclusions_md)
+    exclusion_patterns = config.get("ignore", []) + load_exclusions(args.exclusions_md)
 
     # ------------------------------------------------------------------
     # Pipeline: threshold -> exclusions -> injection -> disagreement -> tag

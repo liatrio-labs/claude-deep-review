@@ -1,9 +1,10 @@
 Type: cli
-Command: grep -n 'include.*\.py' scripts/verify_findings.py
-Expected: no matches (exit code 1)
+Command: grep -n 'config\.get.*ignore.*load_exclusions' scripts/filter_findings.py
+Expected: line 1050 shows REVIEW.md ignore patterns merged before apply_exclusions()
 Timestamp: 2026-03-31T00:00:00Z
 Status: PASS
 
 --- Output ---
-(no output - no matches found)
-Exit code: 1 (grep returns 1 when no matches found - expected)
+1050:    exclusion_patterns = config.get("ignore", []) + load_exclusions(args.exclusions_md)
+
+Exit code: 0
