@@ -53,7 +53,7 @@ python3 {plugin_root}/scripts/post_review.py <findings_json_path>
             "end_line": 45,
             "severity": "critical|high|medium|low",
             "title": "Finding title",
-            "body": "Detailed description",
+            "body": "Detailed description (note: delivery schema uses 'body', not 'description' — the orchestrator maps description→body when constructing delivery JSON)",
             "suggested_fix_code": "code block (optional; renders as suggestion)"
         }
     ],

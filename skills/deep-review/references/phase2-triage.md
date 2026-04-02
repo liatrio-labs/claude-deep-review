@@ -2,6 +2,15 @@
 
 Full sub-steps 2a–2l, Agent templates, and detection logic for Phase 2: Target & Triage.
 
+## Contents
+
+- **2a** VCS platform detection — **2b** Working tree checkout — **2c** Review target + diff save
+- **2d** Project context (CLAUDE.md, REVIEW.md) — **2e** Risk classification — **2f** Change summarizer
+- **2g** Test discovery — **2h** Docs/specs — **2i** History context — **2j** File-level summaries (>500 lines)
+- **2k** AI-generated code detection — **2l** Review dimensions
+- **Parallel execution strategy** — Batch 1 (agents) then Batch 2 (file discovery)
+- **Triage announcement**
+
 ---
 
 ## 2a. Detect VCS Platform
@@ -295,7 +304,7 @@ Read(...) # docs/specs reading
 Bash("git log ...") # history context
 ```
 
-**Why separate?** When a Bash command fails in a parallel batch, Claude Code cancels all co-dispatched calls, including expensive Agent operations. Separating Agent dispatch (BATCH 1) from Bash operations (BATCH 2) ensures Agent work is not wasted on Bash failures.
+**Why separate?** When a Bash command fails in a parallel batch, Claude Code cancels all co-dispatched calls, including expensive Agent operations. Separating Agent dispatch (BATCH 1) from Bash operations (BATCH 2) ensures Agent work is not wasted on Bash failures. (Note: This two-batch strategy is a workaround for current Claude Code cancellation behavior. Re-evaluate if this platform behavior changes.)
 
 ---
 

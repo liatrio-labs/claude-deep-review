@@ -1,2 +1,0 @@
-SUPERSEDED — this file was from a prior T02.1 implementation (phase2-triage.md changes).
-The current T02.1 (#73) proofs are T02.1-01-cli.txt, T02.1-02-file.txt, T02.1-03-cli.txt.

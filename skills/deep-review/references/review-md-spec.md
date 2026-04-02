@@ -2,6 +2,14 @@
 
 A `REVIEW.md` file lets project maintainers customize how deep-review behaves. It can live at the repository root and in subdirectories alongside CLAUDE.md files. It's optional — sensible defaults apply when absent.
 
+## Contents
+
+- **Format** — Section overview, all sections optional
+- **Section Details** — Focus, Skip, Rules, Severity/Confidence Thresholds, Max Findings, Model Tier, Default Delivery, Ignore
+- **Hierarchy** — Root + subdirectory configs, merge rules, discovery prompts
+- **Rule-Writing Principles** — Prescriptive vs directional, 15-25 rules per file
+- **Scaffolding Templates** — Root template, subdirectory template
+
 ## Format
 
 REVIEW.md is a markdown file with specific sections. Each section is optional.

@@ -1,6 +1,0 @@
-SUPERSEDED
-This file was created by a prior incorrect task assignment and does not belong to T02.2.
-The correct proof artifacts for T02.2 (implement classify_blame()) are:
-  T02.2-01-cli.txt         -- import test
-  T02.2-02-functional.txt  -- functional tests
-  T02.2-proofs.md          -- summary

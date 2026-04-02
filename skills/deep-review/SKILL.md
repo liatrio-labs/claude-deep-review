@@ -203,33 +203,13 @@ Output: `{ "verified": [...], "eliminated": [...], "batches": [[id, ...], ...], 
 
 > Validation requires fresh agents, not orchestrator re-reading. When the same context does discovery and validation, correlated errors occur ~60% of the time. Validation agents start clean and assess findings independently.
 
-Parallel validation agents assess findings needing LLM judgment. **Always use Sonnet** — even in Frontier mode.
+Parallel Sonnet validation agents assess findings needing LLM judgment. **Always use Sonnet** — even in Frontier mode. Findings with confidence >=90 skip validation (already factually verified with exact trigger path).
 
-**Scope:** Findings with confidence <90 from the `verify_findings.py` output. Findings with confidence >=90 skip validation (already factually verified with exact trigger path).
+Dispatch one Sonnet agent per batch from the `verify_findings.py` `"batches"` output. Launch all in a single message. Validators CAN and SHOULD pull surrounding context via Read/Grep — unlike Phase 7 challengers, validators need full codebase access.
 
-**Dispatch:** One Sonnet agent per batch from the `verify_findings.py` `"batches"` output. Launch all in a single message.
+Read `references/validation-pipeline.md` Phase 5 for the confidence rubric, dispatch template, triggerability cap (70 for hypothetical-only issues), and failure protocol.
 
-**Validation agents CAN and SHOULD pull surrounding context** via Read/Grep to check for defensive patterns, framework guarantees, or type protections. Unlike Phase 7 challengers who are intentionally blind, validators need full codebase access to assess whether findings are real.
-
-Each agent receives: batch of findings with descriptions/evidence/blame tags, relevant code in `<untrusted-code-content>` tags, and the confidence rubric. Each must attempt to **disprove** the finding and ask: "Can you find a code path that actually triggers this today?" Cap confidence at 70 for issues only reachable under hypothetical future changes. Score using the 0/25/50/75/100 rubric from `references/validation-pipeline.md`.
-
-**Agent tool call template (per batch):** See `references/validation-pipeline.md` Phase 5 for the detailed rubric. Use:
-```
-Agent(
-  subagent_type: "claude-deep-review:validator",
-  description: "Validate batch {N}",
-  prompt: "Findings:
-    {paste 3-5 findings with IDs, descriptions, evidence, and blame tags}
-    Code:
-    <untrusted-code-content>
-    {code from file:line_start-line_end for each finding in batch}
-    </untrusted-code-content>"
-)
-```
-
-After dispatch, announce: "Dispatched N agents for Phase 5."
-
-Update each finding's confidence based on the validator's assessment.
+After dispatch, announce: "Dispatched N agents for Phase 5." Update each finding's confidence based on the validator's assessment.
 
 ---
 
@@ -256,7 +236,7 @@ Findings routed to `"suggestion"` are NOT removed — they appear in the Improve
 
 All tagged findings proceed to Phase 7 regardless of tag.
 
-**code-simplifier timing:** After running `filter_findings.py`, check if any critical/high findings survived. If none, dispatch code-simplifier now using the same named subagent pattern from Phase 3: `Agent(subagent_type: "claude-deep-review:code-simplifier", description: "Review: code-simplifier", prompt: "{project context, change summary, risk classification, all changed files diff}")`. Its findings are processed as a second pass through the same Phase 4-6 pipeline — run `verify_findings.py`, dispatch Sonnet validation agents (Phase 5), run `filter_findings.py` with tag `"suggestion"`. The validated, tagged code-simplifier findings then merge into the Phase 7 challenge pool alongside the main findings.
+**code-simplifier timing:** After running `filter_findings.py`, if no critical/high findings survived, dispatch the code-simplifier agent and run its findings through a second pipeline pass. Read `references/validation-pipeline.md` "Code-Simplifier Second Pass" for the full step-by-step sequence.
 
 Read `references/validation-pipeline.md` for detailed filter/reconciliation rules.
 
@@ -335,6 +315,21 @@ When API rate limits are encountered during any phase:
 5. **User notification** — If recovery extends beyond 5 minutes, notify the user with estimated time remaining and option to cancel the review.
 
 Rate limit recovery is transparent to the user when under 60 seconds. Extended waits (>2 minutes) warrant a status update.
+
+---
+
+## Script Failure Recovery
+
+When `verify_findings.py` (Phase 4), `filter_findings.py` (Phase 6), or `post_review.py` (Phase 8) fail:
+
+1. **Check the exit code and read stderr.** The scripts print structured error messages (`ERROR:` for fatal, `WARNING:` for recoverable).
+2. **Fix the most common cause.** Malformed input JSON is the #1 failure mode — re-write using the `python3 -c "import json; json.dump(...)"` pattern and retry.
+3. **Retry once.** If the same script fails twice on the same input, do not retry further.
+4. **Degrade gracefully.** If the script cannot be recovered:
+   - Phase 4 failure: skip blame classification and diff validation. Pass all findings to Phase 5 as-is with `origin: "new"` (conservative). Note in methodology: "Phase 4 verification skipped due to script failure."
+   - Phase 6 failure: pass all Phase 5 findings directly to Phase 7 without filtering. Note in methodology: "Phase 6 filtering skipped due to script failure."
+   - Phase 8 failure: deliver the report via chat only (no PR comments). Note in methodology: "PR comment delivery failed."
+5. **Never run analysis inline as a substitute.** The scripts exist because LLM-inline analysis has correlated error rates of ~60%. A skipped script with a methodology note is better than fabricated results.
 
 ---
 

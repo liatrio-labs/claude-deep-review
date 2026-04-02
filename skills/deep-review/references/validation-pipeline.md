@@ -4,6 +4,13 @@ After all agents return, process their findings through the validation pipeline 
 
 **Pipeline:** Phase 4 (Classify & Verify) → Phase 5 (Validate) → Phase 6 (Filter & Reconcile) → Phase 7 (Blind Challenge + post-challenge finalization)
 
+## Contents
+
+- **Phase 4** — Step 4.0 (write JSON), 4a (blame classification), 4b (factual verification), 4c (batch for validation)
+- **Phase 5** — Validator dispatch, confidence rubric, failure protocol
+- **Phase 6** — Step 6.0 (write JSON), 6a (threshold filter), 6b (injection filter), 6c (disagreement detection), 6d (tag findings), Code-Simplifier Second Pass
+- **Phase 7** — Blind challenge supplementary detail, post-challenge finalization (dedup, route, cap, rank, incremental diffing)
+
 ---
 
 # Phase 4: Classify & Verify
@@ -317,6 +324,35 @@ The script tags each surviving finding by its eventual report destination. This 
 - **Improvement Suggestions** — test-analyzer, conventions-and-intent comment accuracy, and code-simplifier findings (`report_destination: "suggestion"`)
 - **Promotion rule:** If a test-analyzer finding describes a functional correctness issue that exists today (race condition, logic error, assertion that never fails, test that always passes) rather than a missing-coverage gap ("should add tests for X"), the script promotes it to `"main"`. Decision test: "Does this finding describe a bug that exists today, or a test that should be written?" Bug today -> main report. Test to write -> improvement suggestion.
 - **Dedup rule:** If a test-analyzer finding overlaps with another agent's finding at the same file and line range, the non-test-analyzer finding wins — keep it in the main report and drop the test-analyzer duplicate.
+
+---
+
+## Code-Simplifier Second Pass
+
+Triggered after `filter_findings.py` when **no critical or high findings survived** in the main report. The code-simplifier reviews for simplification opportunities, dead code, and clarity improvements. Its findings go through the full Phase 4-6 pipeline before joining the Phase 7 challenge pool.
+
+**Steps:**
+
+1. **Dispatch code-simplifier** using the same named subagent pattern from Phase 3:
+   ```
+   Agent(
+     subagent_type: "claude-deep-review:code-simplifier",
+     description: "Review: code-simplifier",
+     prompt: "{project context, change summary, risk classification, all changed files diff}"
+   )
+   ```
+
+2. **Merge** code-simplifier findings into the pipeline format (same as Phase 3 merge — set `dimension`, inject `agent: "code-simplifier"`, preserve `cross_file_refs`).
+
+3. **Phase 4** — Run `verify_findings.py` on the code-simplifier findings (blame classification, factual verification, batching). Use the same `--diff-file` from Phase 2 if available.
+
+4. **Phase 5** — Dispatch Sonnet validation agents for the batched findings (same rubric and dispatch pattern as the main Phase 5 pass).
+
+5. **Phase 6** — Run `filter_findings.py` on the validated findings. All code-simplifier findings are tagged `report_destination: "suggestion"` by the dimension-based routing rules.
+
+6. **Merge into challenge pool** — The surviving code-simplifier findings join the main findings for Phase 7 blind challenge. All findings are challenged regardless of their routing tag.
+
+**Skip condition:** If the main review produced critical or high findings, skip the code-simplifier entirely — the PR has more important issues to address first.
 
 ---
 
