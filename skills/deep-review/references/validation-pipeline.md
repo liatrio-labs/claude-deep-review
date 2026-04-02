@@ -224,20 +224,21 @@ python3 {plugin_root}/scripts/filter_findings.py "$TMPDIR/deep-review-phase6-inp
         {
             "id": "bug-1",
             "file": "src/foo.py",
-            "line": 42,
+            "line_start": 42,
+            "line_end": 45,
             "severity": "high",
             "confidence": 85,
             "title": "...",
-            "body": "...",
-            "blame_tag": "new",
-            "dimensions": ["bug"],
+            "description": "...",
+            "origin": "new",
+            "dimension": "bug",
             "agent": "bug-detector"
         }
     ]
 }
 ```
 
-Input may also be a flat array of findings (no wrapper object). The `blame_tag`, `dimensions`, and `agent` fields are optional but improve disagreement detection and tagging accuracy.
+Input may also be a flat array of findings (no wrapper object). The `origin`, `dimension`, and `agent` fields are optional but improve disagreement detection and tagging accuracy. Use the canonical field names (`description`, `line_start`, `origin`, `dimension`). The script auto-normalizes legacy names (`body`, `line`, `blame_tag`, `dimensions`) as a defensive fallback, but the canonical names are the correct interface.
 
 **Output JSON schema:**
 ```json

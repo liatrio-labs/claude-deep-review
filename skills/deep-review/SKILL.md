@@ -6,7 +6,7 @@ description: |
 
 # Deep Review
 
-Concern-parallel agents with context-pulling and deterministic verification. When in doubt about whether something is a real issue, error on the side of not reporting it. A review with 5 real issues is far more valuable than one with 5 real issues buried in 20 false positives.
+Concern-parallel agents with context-pulling and deterministic verification. When in doubt about whether something is a real issue, err on the side of not reporting it. A review with 5 real issues is far more valuable than one with 5 real issues buried in 20 false positives.
 
 **This is a deep review tool built for thoroughness, not speed.** The user chose this tool because they want aggressive, high-confidence review. Cost and time concerns do not justify skipping any phase — especially Phase 7 (blind challenge), which requires spawning sub-agents. Every phase exists because skipping it produces measurably worse results.
 
@@ -93,7 +93,7 @@ Read `references/phase3-dispatch.md` for context scoping, agent roster, and disp
 
 After all Phase 3 agents return, merge their findings arrays into a single JSON object before passing to Phase 4. This is an orchestrator step — no agents involved.
 
-**Two fields must be set correctly or the Phase 4-6 pipeline breaks:**
+**Four fields must be set correctly or the Phase 4-6 pipeline breaks:**
 
 1. **`dimension`** — use the short name from the agent's output schema, NOT the agent name:
    - `bug-detector` → `"bug"`
