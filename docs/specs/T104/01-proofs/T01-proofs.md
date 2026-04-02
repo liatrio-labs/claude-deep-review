@@ -1,47 +1,39 @@
-# T01 Proof Summary
+# T01 Proof Summary — BF-11: Robust diff fallback chain
 
-**Task**: Fix verify_findings.py script bugs (RF-01, RF-03, RF-04, RF-05)
-**Status**: COMPLETED
-**Timestamp**: 2026-03-31
+**Task:** T01 (native ID: 117)
+**Subject:** BF-11 — Robust diff fallback chain in verify_findings.py
+**Status:** COMPLETE
 
 ## Artifacts
 
-| File | Type | Status |
-|------|------|--------|
-| T01-01-test.txt | test | PASS |
-| T01-02-file.txt | file | PASS |
+| File | Type | Status | Description |
+|------|------|--------|-------------|
+| T01-01-test.txt | test | PASS | test_verify_findings.py -- 60 tests pass |
+| T01-02-test.txt | test | PASS | Full test suite -- 158 tests pass |
 
-## Bug Fixes Implemented
+## Implementation Summary
 
-### RF-01: Grep searches from CWD, not repo root
-- Added `_resolve_repo_root()` function using `git rev-parse --show-toplevel`
-- Defined `REPO_ROOT` module-level constant with fallback to script's parent directory
-- Changed grep call to use `REPO_ROOT` as search path instead of `"."`
+Modified scripts/verify_findings.py get_diff() function:
 
-### RF-03: grep rc=2 silently zeroes confidence
-- Changed `_stderr` (discarded) to `grep_stderr` (captured) in grep call
-- Added `if rc == 2:` guard that warns to stderr and continues (skips symbol)
-- rc=1 (no match) still correctly appends symbol to `missing_symbols`
+- Removed: git diff HEAD fallback (always empty in CI -- wrong behavior)
+- Added: Two-dot fallback: git diff {base} HEAD when three-dot fails
+- Added: Return None when all git diffs fail (triggers skip-validation path per RF-04)
+- Added: Stderr logging for which diff source succeeded with byte count
 
-### RF-04: Empty diff string disables validation silently
-- Changed `if not diff_text:` to `if diff_text is None:` in `parse_diff_lines`
-- `None` → returns `None` (skip validation — retrieval failed)
-- `""` → falls through, returns `set()` (all findings tagged surfaced — empty diff)
-- Updated test: `test_empty_input` renamed to `test_empty_input_returns_empty_set`
+New fallback chain:
+1. --diff-file (if provided)
+2. git diff {base}...HEAD (three-dot merge-base)
+3. git diff {base} HEAD (two-dot -- works without merge base)
+4. None (skip diff validation)
 
-### RF-05: Dead branch in sha_in_pr
-- Removed unreachable `short_sha.startswith(full_sha)` branch
-- Renamed parameter `short_sha` to `blamed_sha` for clarity
-- Added comment explaining blamed_sha is always the shorter side
+Added 9 new tests in tests/test_verify_findings.py (TestGetDiff class).
 
-## Tests Added (7 new tests)
-- `TestRepoRoot.test_repo_root_is_absolute` — REPO_ROOT is absolute path
-- `TestRepoRoot.test_repo_root_is_directory` — REPO_ROOT exists as directory
-- `TestRepoRoot.test_grep_called_with_repo_root` — grep arg is not "."
-- `TestVerifyFactualGrepError.test_grep_rc2_skips_symbol_not_zeros_confidence` — rf-03
-- `TestVerifyFactualGrepError.test_grep_rc1_still_records_missing_symbol` — rc=1 still flags
-- `TestShaInPrDeadBranch.test_short_blamed_sha_matches_full_pr_sha` — correct match
-- `TestShaInPrDeadBranch.test_full_blamed_sha_does_not_match_short_pr_sha` — dead branch
+## Requirements Coverage
 
-## Test Results
-51 tests pass (was 44 before this task). Full suite: 140 tests pass.
+| Req | Description | Status |
+|-----|-------------|--------|
+| R01.1 | get_diff reads from --diff-file when provided | PASS |
+| R01.2 | get_diff tries two-dot diff when three-dot fails | PASS |
+| R01.3 | get_diff returns None when all git diffs fail | PASS |
+| R01.4 | get_diff logs which diff source was used to stderr with byte count | PASS |
+| R01.5 | git diff HEAD fallback is removed entirely | PASS |

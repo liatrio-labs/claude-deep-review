@@ -28,6 +28,7 @@ from scripts.verify_findings import (
     verify_factual,
     validate_diff_lines,
     batch_findings,
+    get_diff,
     REPO_ROOT,
 )
 
@@ -780,6 +781,121 @@ class TestShaInPrDeadBranch(unittest.TestCase):
         result = classify_blame(finding, "main")
         # "abc123" does NOT start with "abc1234567890def" → surfaced
         self.assertEqual(result, "surfaced")
+
+
+# ---------------------------------------------------------------------------
+# BF-11: get_diff fallback chain
+# ---------------------------------------------------------------------------
+
+class TestGetDiff(unittest.TestCase):
+    """BF-11: Tests for the robust diff fallback chain in get_diff()."""
+
+    def test_diff_file_read_successfully(self):
+        """R01.1: --diff-file path is read and its content returned."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".diff", delete=False) as f:
+            f.write("diff --git a/foo.py b/foo.py\n+added line\n")
+            tmppath = f.name
+        try:
+            result = get_diff("main", diff_file=tmppath)
+            self.assertIn("added line", result)
+        finally:
+            os.unlink(tmppath)
+
+    def test_diff_file_not_found_returns_none(self):
+        """R01.1: Missing --diff-file returns None gracefully."""
+        result = get_diff("main", diff_file="/nonexistent/path/diff.txt")
+        self.assertIsNone(result)
+
+    @patch("scripts.verify_findings.run")
+    def test_three_dot_success_returns_diff(self, mock_run):
+        """Three-dot success path: returns stdout directly."""
+        mock_run.return_value = ("diff content\n", "", 0)
+        result = get_diff("main")
+        self.assertEqual(result, "diff content\n")
+        mock_run.assert_called_once_with(["git", "diff", "main...HEAD"])
+
+    @patch("scripts.verify_findings.run")
+    def test_two_dot_fallback_when_three_dot_fails(self, mock_run):
+        """R01.2: Two-dot fallback triggered when three-dot diff fails."""
+        def run_side_effect(cmd, check=False):
+            if cmd == ["git", "diff", "main...HEAD"]:
+                return ("", "fatal: no merge base", 128)
+            if cmd == ["git", "diff", "main", "HEAD"]:
+                return ("two-dot diff content\n", "", 0)
+            return ("", "", 0)
+
+        mock_run.side_effect = run_side_effect
+        result = get_diff("main")
+        self.assertEqual(result, "two-dot diff content\n")
+        # Verify both commands were called
+        calls = [c[0][0] for c in mock_run.call_args_list]
+        self.assertIn(["git", "diff", "main...HEAD"], calls)
+        self.assertIn(["git", "diff", "main", "HEAD"], calls)
+
+    @patch("scripts.verify_findings.run")
+    def test_none_returned_when_both_diffs_fail(self, mock_run):
+        """R01.3: Returns None when both three-dot and two-dot diffs fail."""
+        mock_run.return_value = ("", "fatal: bad revision", 128)
+        result = get_diff("main")
+        self.assertIsNone(result)
+
+    @patch("scripts.verify_findings.run")
+    def test_git_diff_head_not_called(self, mock_run):
+        """R01.5: git diff HEAD fallback is removed entirely."""
+        mock_run.return_value = ("", "fatal: bad revision", 128)
+        get_diff("main")
+        # Ensure no call was made with just ["git", "diff", "HEAD"]
+        for call in mock_run.call_args_list:
+            cmd = call[0][0]
+            self.assertNotEqual(cmd, ["git", "diff", "HEAD"],
+                                msg="git diff HEAD must not be called")
+
+    @patch("scripts.verify_findings.run")
+    def test_diff_source_logging_three_dot(self, mock_run):
+        """R01.4: Logs diff source on stderr for three-dot success."""
+        mock_run.return_value = ("diff data\n", "", 0)
+        import io
+        with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+            get_diff("main")
+            stderr_output = mock_stderr.getvalue()
+        self.assertIn("Diff source:", stderr_output)
+        self.assertIn("three-dot", stderr_output)
+        self.assertIn("bytes", stderr_output)
+
+    @patch("scripts.verify_findings.run")
+    def test_diff_source_logging_two_dot(self, mock_run):
+        """R01.4: Logs diff source on stderr for two-dot fallback."""
+        def run_side_effect(cmd, check=False):
+            if cmd == ["git", "diff", "main...HEAD"]:
+                return ("", "fatal: no merge base", 128)
+            if cmd == ["git", "diff", "main", "HEAD"]:
+                return ("two-dot data\n", "", 0)
+            return ("", "", 0)
+
+        mock_run.side_effect = run_side_effect
+        import io
+        with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+            get_diff("main")
+            stderr_output = mock_stderr.getvalue()
+        self.assertIn("Diff source:", stderr_output)
+        self.assertIn("two-dot", stderr_output)
+        self.assertIn("bytes", stderr_output)
+
+    def test_diff_file_logging_includes_bytes(self):
+        """R01.4: --diff-file source logs path and byte count."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".diff", delete=False) as f:
+            f.write("x" * 50)
+            tmppath = f.name
+        try:
+            import io
+            with patch("sys.stderr", new_callable=io.StringIO) as mock_stderr:
+                get_diff("main", diff_file=tmppath)
+                stderr_output = mock_stderr.getvalue()
+            self.assertIn("Diff source:", stderr_output)
+            self.assertIn("--diff-file", stderr_output)
+            self.assertIn("50 bytes", stderr_output)
+        finally:
+            os.unlink(tmppath)
 
 
 if __name__ == "__main__":

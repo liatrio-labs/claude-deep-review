@@ -120,28 +120,56 @@ def get_diff(base_branch, diff_file=None):
     """
     Return the unified diff text between base_branch and HEAD.
 
+    Fallback chain:
+    1. --diff-file (if provided) — read from file
+    2. git diff {base}...HEAD (three-dot merge-base diff)
+    3. git diff {base} HEAD (two-dot — noisier but works without a merge base)
+    4. Return None (skip diff validation — better than false "surfaced" tagging)
+
     If diff_file is provided, read from it instead of running git diff.
     Returns the diff string, or None on failure.
     """
     if diff_file:
         try:
             with open(diff_file) as fh:
-                return fh.read()
+                content = fh.read()
+            print(
+                f"Diff source: --diff-file ({diff_file}), {len(content)} bytes",
+                file=sys.stderr,
+            )
+            return content
         except OSError as e:
             warn(f"Could not read diff file '{diff_file}': {e}")
             return None
 
+    # Three-dot diff (merge-base): git diff {base}...HEAD
     stdout, stderr, rc = run(["git", "diff", f"{base_branch}...HEAD"])
-    if rc != 0:
-        warn(
-            f"git diff failed (exit {rc}): {stderr.strip()}. "
-            "Falling back to git diff HEAD (unstaged changes)."
+    if rc == 0:
+        print(
+            f"Diff source: git diff {base_branch}...HEAD (three-dot), {len(stdout)} bytes",
+            file=sys.stderr,
         )
-        stdout, stderr, rc = run(["git", "diff", "HEAD"])
-        if rc != 0:
-            warn("git diff HEAD also failed. Diff validation will be skipped.")
-            return None
-    return stdout
+        return stdout
+
+    warn(
+        f"git diff {base_branch}...HEAD failed (exit {rc}): {stderr.strip()}. "
+        f"Falling back to git diff {base_branch} HEAD (two-dot)."
+    )
+
+    # Two-dot diff: git diff {base} HEAD
+    stdout, stderr, rc = run(["git", "diff", base_branch, "HEAD"])
+    if rc == 0:
+        print(
+            f"Diff source: git diff {base_branch} HEAD (two-dot fallback), {len(stdout)} bytes",
+            file=sys.stderr,
+        )
+        return stdout
+
+    warn(
+        f"git diff {base_branch} HEAD also failed (exit {rc}): {stderr.strip()}. "
+        "Diff validation will be skipped."
+    )
+    return None
 
 
 def parse_diff_lines(diff_text):

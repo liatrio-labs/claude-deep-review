@@ -1,64 +1,18 @@
 Type: test
-Command: python3 -m pytest tests/test_verify_findings.py -v
-Expected: All tests pass (51 tests, including 7 new tests covering RF-01/03/04/05)
-Timestamp: 2026-03-31T00:00:00Z
+Command: python3 -m pytest tests/test_verify_findings.py -q -v
+Expected: All tests pass including new BF-11 fallback tests
+Timestamp: 2026-04-02T02:34:02.917473+00:00
+Status: PASS
 
+Output:
 ============================= test session starts ==============================
 platform darwin -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0
-collected 51 items
+rootdir: /Users/lee/personal/claude-deep-review
+plugins: anyio-4.13.0
+collected 60 items
 
-tests/test_verify_findings.py::TestParseDiffLines::test_added_lines PASSED
-tests/test_verify_findings.py::TestParseDiffLines::test_empty_input_returns_empty_set PASSED
-tests/test_verify_findings.py::TestParseDiffLines::test_hunk_with_offset PASSED
-tests/test_verify_findings.py::TestParseDiffLines::test_multiple_files PASSED
-tests/test_verify_findings.py::TestParseDiffLines::test_multiple_hunks_same_file PASSED
-tests/test_verify_findings.py::TestParseDiffLines::test_no_newline_at_eof_ignored PASSED
-tests/test_verify_findings.py::TestParseDiffLines::test_none_input_returns_none PASSED
-tests/test_verify_findings.py::TestParseDiffLines::test_removed_lines_do_not_advance_new_line PASSED
-tests/test_verify_findings.py::TestIsLineInDiff::test_exact_match PASSED
-tests/test_verify_findings.py::TestIsLineInDiff::test_no_match PASSED
-tests/test_verify_findings.py::TestIsLineInDiff::test_none_valid_lines_always_true PASSED
-tests/test_verify_findings.py::TestIsLineInDiff::test_stripped_path_match PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_blame_binary_file_returns_new PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_blame_failure_returns_new PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_cross_file_refs_always_surfaced PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_cross_file_refs_severity_downgrade_critical PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_cross_file_refs_severity_low_stays_low PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_file_not_found_returns_new PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_git_log_failure_returns_new PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_new_classification_when_blame_sha_in_pr PASSED
-tests/test_verify_findings.py::TestClassifyBlame::test_surfaced_classification_when_blame_sha_not_in_pr PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_binary_file_skips_verification PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_empty_filepath_eliminates PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_file_not_found_eliminates PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_line_out_of_range_eliminates PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_missing_symbol_sets_confidence_zero PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_no_line_reference_skips PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_symbol_in_code_at_lines_fast_path PASSED
-tests/test_verify_findings.py::TestVerifyFactual::test_valid_file_and_lines_verified PASSED
-tests/test_verify_findings.py::TestValidateDiffLines::test_line_in_diff PASSED
-tests/test_verify_findings.py::TestValidateDiffLines::test_line_not_in_diff_tags_surfaced PASSED
-tests/test_verify_findings.py::TestValidateDiffLines::test_no_double_downgrade_when_blame_already_surfaced PASSED
-tests/test_verify_findings.py::TestValidateDiffLines::test_no_line_reference_passes PASSED
-tests/test_verify_findings.py::TestValidateDiffLines::test_none_valid_lines_skips PASSED
-tests/test_verify_findings.py::TestValidateDiffLines::test_partial_overlap_counts_as_in_diff PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_different_files_split PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_empty_input PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_finding_id_fallback PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_max_batch_size_respected PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_same_file_grouped PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_single_finding PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_sort_order_by_file_then_line PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_tail_merging PASSED
-tests/test_verify_findings.py::TestBatchFindings::test_tail_too_large_to_merge PASSED
-tests/test_verify_findings.py::TestRepoRoot::test_grep_called_with_repo_root PASSED
-tests/test_verify_findings.py::TestRepoRoot::test_repo_root_is_absolute PASSED
-tests/test_verify_findings.py::TestRepoRoot::test_repo_root_is_directory PASSED
-tests/test_verify_findings.py::TestVerifyFactualGrepError::test_grep_rc1_still_records_missing_symbol PASSED
-tests/test_verify_findings.py::TestVerifyFactualGrepError::test_grep_rc2_skips_symbol_not_zeros_confidence PASSED
-tests/test_verify_findings.py::TestShaInPrDeadBranch::test_full_blamed_sha_does_not_match_short_pr_sha PASSED
-tests/test_verify_findings.py::TestShaInPrDeadBranch::test_short_blamed_sha_matches_full_pr_sha PASSED
+tests/test_verify_findings.py .......................................... [ 70%]
+..................                                                       [100%]
 
-============================== 51 passed in 0.03s ==============================
+============================== 60 passed in 0.03s ==============================
 
-Status: PASS
