@@ -82,7 +82,7 @@ Regardless of the PR size or how many other agents are running, you MUST check A
 - Mass assignment / over-posting — user input bound directly to internal models without an explicit allowlist of permitted fields, allowing attackers to set admin flags, ownership fields, or internal state
 
 **Unsafe deserialization**
-- Use of unsafe deserialization functions on untrusted data (Python's unsafe deserialization modules, PHP unserialize, Java ObjectInputStream, .NET BinaryFormatter)
+- Use of unsafe deserialization functions on untrusted data (Python's unsafe pickle, PHP unserialize, Java ObjectInputStream, .NET BinaryFormatter)
 - Use of YAML.load without SafeLoader on external data
 - JSON.parse combined with class instantiation or prototype assignment from user input
 - Any deserialization format that can trigger constructors or callbacks
