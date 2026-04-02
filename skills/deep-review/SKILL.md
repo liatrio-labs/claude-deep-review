@@ -111,85 +111,15 @@ After all Phase 3 agents return, parse and merge their findings into a single JS
 
 **Four fields must be set correctly or the Phase 4-6 pipeline breaks:**
 
-1. **`dimension`** — use the short name from the agent's output schema, NOT the agent name:
-   - `bug-detector` → `"bug"`
-   - `security-reviewer` → `"security"`
-   - `cross-file-impact` → `"cross_file_impact"`
-   - `test-analyzer` → `"test_coverage"`
-   - `conventions-and-intent` → `"convention"` / `"intent"` / `"comment_accuracy"` (as set by the agent)
-   - `type-design-analyzer` → `"type_design"`
-   - `code-simplifier` → `"simplification"`
+1. **`dimension`** — short name from agent output, NOT the agent name. Mapping: `bug-detector`→`"bug"`, `security-reviewer`→`"security"`, `cross-file-impact`→`"cross_file_impact"`, `test-analyzer`→`"test_coverage"`, `conventions-and-intent`→`"convention"`/`"intent"`/`"comment_accuracy"`, `type-design-analyzer`→`"type_design"`, `code-simplifier`→`"simplification"`.
 
-2. **`agent`** — the agent name string used by `filter_findings.py` for report routing and suppression rules. Agents do NOT emit this field — the orchestrator must inject it during merge. Use the exact strings below:
-   - `"bug-detector"`, `"security-reviewer"`, `"cross-file-impact"`, `"test-analyzer"`, `"conventions-and-intent"`, `"type-design-analyzer"`, `"code-simplifier"`
+2. **`agent`** — injected by the orchestrator (agents do NOT emit this). Exact strings: `"bug-detector"`, `"security-reviewer"`, `"cross-file-impact"`, `"test-analyzer"`, `"conventions-and-intent"`, `"type-design-analyzer"`, `"code-simplifier"`.
 
-3. **`cross_file_refs`** — preserve exactly as returned by the agent. `verify_findings.py` uses this field to classify cross-file findings as "surfaced" in Phase 4a. Do not drop or rename it.
+3. **`cross_file_refs`** — preserve exactly as returned. Used by `verify_findings.py` for "surfaced" classification.
 
-4. **`description`** — the pipeline field is `description`, not `body`. The `body` field is only used in the Phase 8 delivery JSON for `post_review.py`. Using `body` instead of `description` in Phase 3-6 will cause filter_findings.py to treat the finding as having an empty description. (`filter_findings.py` will auto-normalize `body` to `description` as a fallback, but the correct field name must be used.)
+4. **`description`** — NOT `body`. (`body` is Phase 8 delivery only. `filter_findings.py` auto-normalizes as fallback, but use the correct name.)
 
-**Example merged JSON (one finding per source agent):**
-
-```json
-{
-  "findings": [
-    {
-      "id": "bug-1",
-      "dimension": "bug",
-      "agent": "bug-detector",
-      "severity": "high",
-      "confidence": 80,
-      "file": "src/auth.py",
-      "line_start": 42,
-      "line_end": 45,
-      "title": "Token not invalidated on logout",
-      "description": "...",
-      "evidence": "...",
-      "suggestion": "...",
-      "suggested_fix_code": null,
-      "cross_file_refs": []
-    },
-    {
-      "id": "security-1",
-      "dimension": "security",
-      "agent": "security-reviewer",
-      "severity": "critical",
-      "confidence": 90,
-      "file": "src/auth.py",
-      "line_start": 88,
-      "line_end": 92,
-      "title": "SQL injection via unsanitized user input",
-      "description": "...",
-      "evidence": "...",
-      "suggestion": "...",
-      "suggested_fix_code": null,
-      "cross_file_refs": []
-    },
-    {
-      "id": "cross-file-1",
-      "dimension": "cross_file_impact",
-      "agent": "cross-file-impact",
-      "severity": "high",
-      "confidence": 75,
-      "file": "src/api.py",
-      "line_start": 10,
-      "line_end": 12,
-      "title": "Removed function still called by billing module",
-      "description": "...",
-      "evidence": "...",
-      "suggestion": "...",
-      "suggested_fix_code": null,
-      "cross_file_refs": ["src/billing.py"]
-    }
-  ],
-  "base_branch": "main",
-  "head_sha": "abc123",
-  "pr_number": 42,
-  "owner": "org",
-  "repo": "name"
-}
-```
-
-Pass this merged object to `verify_findings.py` via the Step 4.0 python3 pattern in `references/validation-pipeline.md`.
+See `references/phase3-dispatch.md` "Merge Example" for the full merged JSON structure with all fields. Pass the merged object to `verify_findings.py` via the Step 4.0 python3 pattern in `references/validation-pipeline.md`.
 
 ---
 
@@ -319,32 +249,9 @@ Read `references/delivery-guide.md` for PR comment API implementation (batched r
 
 ---
 
-## Rate Limit Recovery
+## Error Recovery
 
-When API rate limits are encountered during any phase:
-
-1. **Detection** — The orchestrator or subagent will receive a 429 rate limit error.
-2. **Graceful pause** — Stop agent dispatch and wait according to the response's Retry-After header (default 60 seconds).
-3. **Resume from checkpoint** — After waiting, resume the phase that was interrupted. Do not restart from Phase 1.
-4. **Batch reduction** — If rate limits persist, reduce batch sizes (Phase 3: dispatch 2-3 agents instead of all; Phase 5/7: reduce validation/challenge batches by 50%).
-5. **User notification** — If recovery extends beyond 5 minutes, notify the user with estimated time remaining and option to cancel the review.
-
-Rate limit recovery is transparent to the user when under 60 seconds. Extended waits (>2 minutes) warrant a status update.
-
----
-
-## Script Failure Recovery
-
-When `verify_findings.py` (Phase 4), `filter_findings.py` (Phase 6), or `post_review.py` (Phase 8) fail:
-
-1. **Check the exit code and read stderr.** The scripts print structured error messages (`ERROR:` for fatal, `WARNING:` for recoverable).
-2. **Fix the most common cause.** Malformed input JSON is the #1 failure mode — re-write using the `python3 -c "import json; json.dump(...)"` pattern and retry.
-3. **Retry once.** If the same script fails twice on the same input, do not retry further.
-4. **Degrade gracefully.** If the script cannot be recovered:
-   - Phase 4 failure: Follow the numbered recovery checklist in `references/validation-pipeline.md`. Do NOT skip Phase 5 or substitute inline analysis — dispatch validation agents with all findings set to `origin: "new"`.
-   - Phase 6 failure: pass all Phase 5 findings directly to Phase 7 without filtering. Note in methodology: "Phase 6 filtering skipped due to script failure."
-   - Phase 8 failure: deliver the report via chat only (no PR comments). Note in methodology: "PR comment delivery failed."
-5. **Never run analysis inline as a substitute.** The scripts exist because LLM-inline analysis has correlated error rates of ~60%. A skipped script with a methodology note is better than fabricated results.
+Read `references/validation-pipeline.md` "Operational Recovery" for rate limit handling and script failure recovery procedures (retry, degrade, Phase 4 recovery checklist). Key rule: **never run analysis inline as a substitute for a failed script** — correlated error rates of ~60%.
 
 ---
 

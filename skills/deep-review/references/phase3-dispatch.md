@@ -204,6 +204,74 @@ This replaces the previous expectation of a single JSON array per agent. The mer
 
 ---
 
+## Merge Example
+
+After parsing all agent outputs, merge into a single JSON object. The orchestrator must inject the `agent` field (agents don't emit it) and map `dimension` to the short name (not the agent name). See SKILL.md "Merge Phase 3 Outputs" for the four field rules.
+
+```json
+{
+  "findings": [
+    {
+      "id": "bug-1",
+      "dimension": "bug",
+      "agent": "bug-detector",
+      "severity": "high",
+      "confidence": 80,
+      "file": "src/auth.py",
+      "line_start": 42,
+      "line_end": 45,
+      "title": "Token not invalidated on logout",
+      "description": "...",
+      "evidence": "...",
+      "suggestion": "...",
+      "suggested_fix_code": null,
+      "cross_file_refs": []
+    },
+    {
+      "id": "security-1",
+      "dimension": "security",
+      "agent": "security-reviewer",
+      "severity": "critical",
+      "confidence": 90,
+      "file": "src/auth.py",
+      "line_start": 88,
+      "line_end": 92,
+      "title": "SQL injection via unsanitized user input",
+      "description": "...",
+      "evidence": "...",
+      "suggestion": "...",
+      "suggested_fix_code": null,
+      "cross_file_refs": []
+    },
+    {
+      "id": "cross-file-1",
+      "dimension": "cross_file_impact",
+      "agent": "cross-file-impact",
+      "severity": "high",
+      "confidence": 75,
+      "file": "src/api.py",
+      "line_start": 10,
+      "line_end": 12,
+      "title": "Removed function still called by billing module",
+      "description": "...",
+      "evidence": "...",
+      "suggestion": "...",
+      "suggested_fix_code": null,
+      "cross_file_refs": ["src/billing.py"]
+    }
+  ],
+  "base_branch": "main",
+  "head_sha": "abc123",
+  "pr_number": 42,
+  "owner": "org",
+  "repo": "name"
+}
+```
+
+Pass this merged object to `verify_findings.py` via the Step 4.0 python3 pattern in `references/validation-pipeline.md`.
+
+---
+
 ## Agent Failure Handling
 
 If a subagent fails (crash, timeout, error): continue with completed agents, log the failure in Review Methodology, warn the user if the failed agent covered security or bugs. Never silently skip a failed agent.

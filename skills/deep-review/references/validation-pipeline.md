@@ -458,3 +458,34 @@ After classification:
 - Keep "Introduced" findings in normal severity-ranked sections
 - Compile "Fixed" list for Incremental Review Status section
 - Generate findings metadata for Phase 8 footer
+
+---
+
+# Operational Recovery
+
+## Rate Limit Recovery
+
+When API rate limits are encountered during any phase:
+
+1. **Detection** — The orchestrator or subagent will receive a 429 rate limit error.
+2. **Graceful pause** — Stop agent dispatch and wait according to the response's Retry-After header (default 60 seconds).
+3. **Resume from checkpoint** — After waiting, resume the phase that was interrupted. Do not restart from Phase 1.
+4. **Batch reduction** — If rate limits persist, reduce batch sizes (Phase 3: dispatch 2-3 agents instead of all; Phase 5/7: reduce validation/challenge batches by 50%).
+5. **User notification** — If recovery extends beyond 5 minutes, notify the user with estimated time remaining and option to cancel the review.
+
+Rate limit recovery is transparent to the user when under 60 seconds. Extended waits (>2 minutes) warrant a status update.
+
+---
+
+## Script Failure Recovery
+
+When `verify_findings.py` (Phase 4), `filter_findings.py` (Phase 6), or `post_review.py` (Phase 8) fail:
+
+1. **Check the exit code and read stderr.** The scripts print structured error messages (`ERROR:` for fatal, `WARNING:` for recoverable).
+2. **Fix the most common cause.** Malformed input JSON is the #1 failure mode — re-write using the `python3 -c "import json; json.dump(...)"` pattern and retry.
+3. **Retry once.** If the same script fails twice on the same input, do not retry further.
+4. **Degrade gracefully.** If the script cannot be recovered:
+   - Phase 4 failure: Follow the numbered recovery checklist in the "Phase 4 failure recovery" section above. Do NOT skip Phase 5 or substitute inline analysis — dispatch validation agents with all findings set to `origin: "new"`.
+   - Phase 6 failure: pass all Phase 5 findings directly to Phase 7 without filtering. Note in methodology: "Phase 6 filtering skipped due to script failure."
+   - Phase 8 failure: deliver the report via chat only (no PR comments). Note in methodology: "PR comment delivery failed."
+5. **Never run analysis inline as a substitute.** The scripts exist because LLM-inline analysis has correlated error rates of ~60%. A skipped script with a methodology note is better than fabricated results.
