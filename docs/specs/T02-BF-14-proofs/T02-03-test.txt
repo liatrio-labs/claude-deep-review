@@ -1,0 +1,10 @@
+Type: test
+Command: python3 -m pytest tests/ -q
+Expected: Full test suite passes (208 tests, 0 failures)
+Timestamp: 2026-04-01T00:00:00Z
+Status: PASS
+
+--- Output ---
+208 passed in 0.06s
+
+No regressions. Original 197 tests still pass. 11 new tests added for normalize_field_names.

@@ -1,0 +1,11 @@
+Type: file
+Command: grep -n "description.*not.*body\|body.*only.*Phase 8" skills/deep-review/SKILL.md
+Expected: SKILL.md merge instructions contain description field reinforcement (R02.6)
+Timestamp: 2026-04-01T00:00:00Z
+Status: PASS
+
+--- Verification ---
+SKILL.md line 108 now reads:
+4. **`description`** -- the pipeline field is `description`, not `body`. The `body` field is only used in the Phase 8 delivery JSON for `post_review.py`. Using `body` instead of `description` in Phase 3-6 will cause filter_findings.py to treat the finding as having an empty description. (`filter_findings.py` will auto-normalize `body` to `description` as a fallback, but the correct field name must be used.)
+
+This satisfies R02.6: SKILL.md merge instructions reinforce description field name.

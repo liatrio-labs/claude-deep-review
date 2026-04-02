@@ -30,6 +30,7 @@ from scripts.filter_findings import (
     tag_findings,
     load_exclusions,
     apply_exclusions,
+    normalize_field_names,
     _is_test_correctness_finding,
     _dedup_test_analyzer,
     _route_by_dimension,
@@ -1045,6 +1046,115 @@ class TestSingletonPenaltyThresholdInteraction(unittest.TestCase):
         passed, eliminated = apply_threshold_filter(active, config)
         self.assertEqual(len(passed), 1)
         self.assertEqual(len(eliminated), 0)
+
+
+# ---------------------------------------------------------------------------
+# normalize_field_names (BF-14)
+# ---------------------------------------------------------------------------
+
+class TestNormalizeFieldNames(unittest.TestCase):
+
+    def test_body_renamed_to_description_when_description_absent(self):
+        """R02.1: body -> description when description is missing."""
+        findings = [{"id": "n1", "body": "some bug explanation"}]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 1)
+        self.assertEqual(findings[0]["description"], "some bug explanation")
+        self.assertNotIn("body", findings[0])
+
+    def test_body_not_renamed_when_description_present(self):
+        """R02.2: body is left untouched when description already exists."""
+        findings = [{"id": "n2", "body": "old body", "description": "canonical desc"}]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 0)
+        self.assertEqual(findings[0]["description"], "canonical desc")
+        # body should remain as-is (not removed)
+        self.assertEqual(findings[0]["body"], "old body")
+
+    def test_line_renamed_to_line_start_when_line_start_absent(self):
+        """R02.3: line -> line_start when line_start is missing."""
+        findings = [{"id": "n3", "line": 42}]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 1)
+        self.assertEqual(findings[0]["line_start"], 42)
+        self.assertNotIn("line", findings[0])
+
+    def test_line_not_renamed_when_line_start_present(self):
+        """line is left untouched when line_start already exists."""
+        findings = [{"id": "n4", "line": 10, "line_start": 42}]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 0)
+        self.assertEqual(findings[0]["line_start"], 42)
+        self.assertEqual(findings[0]["line"], 10)
+
+    def test_blame_tag_renamed_to_origin_when_origin_absent(self):
+        """R02.4: blame_tag -> origin when origin is missing."""
+        findings = [{"id": "n5", "blame_tag": "new"}]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 1)
+        self.assertEqual(findings[0]["origin"], "new")
+        self.assertNotIn("blame_tag", findings[0])
+
+    def test_blame_tag_not_renamed_when_origin_present(self):
+        """blame_tag is left untouched when origin already exists."""
+        findings = [{"id": "n6", "blame_tag": "old_tag", "origin": "surfaced"}]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 0)
+        self.assertEqual(findings[0]["origin"], "surfaced")
+        self.assertEqual(findings[0]["blame_tag"], "old_tag")
+
+    def test_multiple_fields_normalized_same_finding(self):
+        """A finding with body+line+blame_tag gets all three renamed at once."""
+        findings = [{
+            "id": "n7",
+            "body": "explanation",
+            "line": 99,
+            "blame_tag": "new",
+        }]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 1)
+        self.assertEqual(findings[0]["description"], "explanation")
+        self.assertEqual(findings[0]["line_start"], 99)
+        self.assertEqual(findings[0]["origin"], "new")
+        self.assertNotIn("body", findings[0])
+        self.assertNotIn("line", findings[0])
+        self.assertNotIn("blame_tag", findings[0])
+
+    def test_no_normalization_needed(self):
+        """Returns 0 when all fields already use canonical names."""
+        findings = [_make_finding()]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 0)
+
+    def test_mixed_findings_partial_normalization(self):
+        """Only findings with legacy fields are counted."""
+        findings = [
+            {"id": "a", "description": "good", "line_start": 1},
+            {"id": "b", "body": "legacy", "line_start": 2},
+            {"id": "c", "description": "good", "line": 3},
+        ]
+        count = normalize_field_names(findings)
+        self.assertEqual(count, 2)
+        self.assertEqual(findings[1]["description"], "legacy")
+        self.assertEqual(findings[2]["line_start"], 3)
+
+    def test_empty_findings_list(self):
+        """No error on empty input."""
+        count = normalize_field_names([])
+        self.assertEqual(count, 0)
+
+    def test_warning_logged_to_stderr(self):
+        """R02.5: stderr warning is produced when normalization is applied."""
+        import io
+        import contextlib
+        findings = [{"id": "n8", "body": "some text"}]
+        stderr_capture = io.StringIO()
+        with contextlib.redirect_stderr(stderr_capture):
+            normalize_field_names(findings)
+        output = stderr_capture.getvalue()
+        self.assertIn("WARNING", output)
+        self.assertIn("normalize", output.lower())
+        self.assertIn("body->description", output)
 
 
 if __name__ == "__main__":

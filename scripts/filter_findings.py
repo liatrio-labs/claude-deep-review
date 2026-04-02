@@ -82,6 +82,60 @@ def warn(msg):
 
 
 # ---------------------------------------------------------------------------
+# Input normalization (BF-14)
+# ---------------------------------------------------------------------------
+
+# Legacy field names mapped to their canonical equivalents.
+# The pipeline uses "description", "line_start", and "origin" internally.
+# Agents or orchestrators occasionally emit the legacy names.
+_FIELD_RENAMES = {
+    "body": "description",
+    "line": "line_start",
+    "blame_tag": "origin",
+}
+
+
+def normalize_field_names(findings):
+    """
+    Normalize legacy field names to the canonical pipeline schema.
+
+    For each finding:
+      - ``body`` -> ``description`` (only when ``description`` is absent)
+      - ``line`` -> ``line_start`` (only when ``line_start`` is absent)
+      - ``blame_tag`` -> ``origin`` (only when ``origin`` is absent)
+
+    When a rename is applied, the legacy key is removed and a WARNING is
+    logged to stderr.  If both the legacy and canonical key exist, the
+    canonical value is preserved and the legacy key is left untouched.
+
+    Returns the number of findings that had at least one field renamed.
+    """
+    normalized_count = 0
+
+    for finding in findings:
+        renamed_fields = []
+        for legacy, canonical in _FIELD_RENAMES.items():
+            if legacy in finding and canonical not in finding:
+                finding[canonical] = finding.pop(legacy)
+                renamed_fields.append(f"{legacy}->{canonical}")
+        if renamed_fields:
+            normalized_count += 1
+            fid = finding.get("id", "?")
+            warn(
+                f"[normalize] Finding {fid!r}: renamed legacy fields: "
+                + ", ".join(renamed_fields)
+            )
+
+    if normalized_count:
+        warn(
+            f"[normalize] Normalized legacy field names on "
+            f"{normalized_count}/{len(findings)} finding(s)."
+        )
+
+    return normalized_count
+
+
+# ---------------------------------------------------------------------------
 # REVIEW.md parser
 # ---------------------------------------------------------------------------
 
@@ -1143,6 +1197,11 @@ def main():
         die("findings_json must be a JSON array or an object with a 'findings' key.")
 
     total = len(findings)
+
+    # ------------------------------------------------------------------
+    # Normalize legacy field names (BF-14)
+    # ------------------------------------------------------------------
+    normalize_field_names(findings)
 
     # ------------------------------------------------------------------
     # Parse REVIEW.md config

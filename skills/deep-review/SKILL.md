@@ -63,6 +63,10 @@ Check REVIEW.md for `model_tier` and `default_delivery`. Build a single `AskUser
 
 Identify the review target and gather all context needed for agent dispatch. Fast pass in the main context (not a subagent). Read `references/phase2-triage.md` for all 12 sub-steps (2a–2l), Agent templates, and detection logic.
 
+### Diff persistence for Phase 4 (PR/MR mode)
+
+In PR/MR mode, save the full diff from `gh pr diff` / `glab mr diff` to `$TMPDIR/deep-review-diff.patch` during step 2c. Phase 4 uses this via `--diff-file` to avoid redundant git diff calls and merge-base failures. See `references/phase2-triage.md` section 2c for validation rules. For branch comparison and local changes, skip this step.
+
 ### REVIEW.md detection
 
 Complete 2c REVIEW.md detection before proceeding to 2d. REVIEW.md settings cascade to all thresholds, rules, and ignore patterns for the entire review. Full AskUserQuestion templates are in `references/phase2-triage.md`.
@@ -103,6 +107,8 @@ After all Phase 3 agents return, merge their findings arrays into a single JSON 
    - `"bug-detector"`, `"security-reviewer"`, `"cross-file-impact"`, `"test-analyzer"`, `"conventions-and-intent"`, `"type-design-analyzer"`
 
 3. **`cross_file_refs`** — preserve exactly as returned by the agent. `verify_findings.py` uses this field to classify cross-file findings as "surfaced" in Phase 4a. Do not drop or rename it.
+
+4. **`description`** — the pipeline field is `description`, not `body`. The `body` field is only used in the Phase 8 delivery JSON for `post_review.py`. Using `body` instead of `description` in Phase 3-6 will cause filter_findings.py to treat the finding as having an empty description. (`filter_findings.py` will auto-normalize `body` to `description` as a fallback, but the correct field name must be used.)
 
 **Example merged JSON (one finding per source agent):**
 
@@ -180,8 +186,10 @@ Run `scripts/verify_findings.py` with the Phase 3 findings JSON. The script hand
 
 ```
 python3 {plugin_root}/scripts/verify_findings.py findings.json \
-  --base-branch {base_branch}
+  --base-branch {base_branch} --diff-file "$TMPDIR/deep-review-diff.patch"
 ```
+
+Pass `--diff-file` when the diff was saved during Phase 2c (PR/MR mode). The `--diff-file` flag tells the script to read the pre-fetched API diff instead of running its own `git diff`, avoiding merge-base failures in fork-based repos and shallow clones. For **branch comparison** and **local changes** target types (no saved diff file), omit `--diff-file` — the script falls back to its own git diff chain (three-dot, two-dot, skip).
 
 Input: merged Phase 3 agent output as a JSON object with a `"findings"` array plus `base_branch`, `head_sha`, `pr_number`, `owner`, and `repo` fields.
 

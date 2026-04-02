@@ -1,0 +1,31 @@
+Type: test
+Command: python3 -m pytest tests/test_filter_findings.py::TestNormalizeFieldNames -v
+Expected: All 11 normalize_field_names tests pass
+Timestamp: 2026-04-01T00:00:00Z
+Status: PASS
+
+--- Output ---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.3, pytest-9.0.2, pluggy-1.6.0
+
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_blame_tag_not_renamed_when_origin_present PASSED [  9%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_blame_tag_renamed_to_origin_when_origin_absent PASSED [ 18%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_body_not_renamed_when_description_present PASSED [ 27%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_body_renamed_to_description_when_description_absent PASSED [ 36%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_empty_findings_list PASSED [ 45%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_line_not_renamed_when_line_start_present PASSED [ 54%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_line_renamed_to_line_start_when_line_start_absent PASSED [ 63%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_mixed_findings_partial_normalization PASSED [ 72%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_multiple_fields_normalized_same_finding PASSED [ 81%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_no_normalization_needed PASSED [ 90%]
+tests/test_filter_findings.py::TestNormalizeFieldNames::test_warning_logged_to_stderr PASSED [100%]
+
+============================== 11 passed in 0.01s ==============================
+
+--- Requirements Coverage ---
+R02.1: test_body_renamed_to_description_when_description_absent - PASS
+R02.2: test_body_not_renamed_when_description_present - PASS
+R02.3: test_line_renamed_to_line_start_when_line_start_absent - PASS
+R02.4: test_blame_tag_renamed_to_origin_when_origin_absent - PASS
+R02.5: test_warning_logged_to_stderr - PASS
+R02.6: Verified in SKILL.md (see T02-02-file.txt)
