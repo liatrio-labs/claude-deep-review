@@ -26,6 +26,7 @@ from scripts.post_review import (
     render_comment_body,
     build_footer,
     gitlab_project_id,
+    valid_lines_for_file,
 )
 
 
@@ -317,6 +318,107 @@ class TestGitlabProjectId(unittest.TestCase):
     def test_nested_path(self):
         result = gitlab_project_id("myorg/team", "myrepo")
         self.assertEqual(result, "myorg%2Fteam%2Fmyrepo")
+
+
+# ---------------------------------------------------------------------------
+# valid_lines_for_file
+# ---------------------------------------------------------------------------
+
+class TestValidLinesForFile(unittest.TestCase):
+
+    def test_returns_none_when_valid_lines_is_none(self):
+        self.assertIsNone(valid_lines_for_file(None, "foo.py"))
+
+    def test_returns_sorted_lines_for_exact_file(self):
+        valid = {("src/app.py", 10), ("src/app.py", 3), ("src/app.py", 7), ("other.py", 1)}
+        result = valid_lines_for_file(valid, "src/app.py")
+        self.assertEqual(result, [3, 7, 10])
+
+    def test_returns_at_most_10(self):
+        valid = {("f.py", i) for i in range(1, 21)}
+        result = valid_lines_for_file(valid, "f.py")
+        self.assertEqual(len(result), 10)
+        self.assertEqual(result, list(range(1, 11)))
+
+    def test_strips_leading_ab_prefix(self):
+        valid = {("src/app.py", 5)}
+        result = valid_lines_for_file(valid, "a/src/app.py")
+        self.assertEqual(result, [5])
+
+    def test_empty_when_no_match(self):
+        valid = {("other.py", 1)}
+        result = valid_lines_for_file(valid, "missing.py")
+        self.assertEqual(result, [])
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic logging in skip warnings
+# ---------------------------------------------------------------------------
+
+class TestSkipWarningDiagnostics(unittest.TestCase):
+    """Verify that skip warnings include valid-line diagnostics."""
+
+    @patch("scripts.post_review.get_head_sha", return_value="abc123")
+    @patch("scripts.post_review.check_tool")
+    @patch("scripts.post_review.post_json", return_value={"html_url": "http://example.com"})
+    @patch("scripts.post_review.warn")
+    def test_github_skip_includes_valid_lines(self, mock_warn, _post, _tool, _sha):
+        from scripts.post_review import post_github
+        valid_lines = {("src/app.py", 10), ("src/app.py", 20)}
+        data = {
+            "owner": "o", "repo": "r", "pr_number": 1,
+            "findings": [{"file": "src/app.py", "line": 99, "title": "Bug"}],
+        }
+        post_github(data, valid_lines)
+        mock_warn.assert_called_once()
+        msg = mock_warn.call_args[0][0]
+        self.assertIn("Valid lines for this file:", msg)
+        self.assertIn("10", msg)
+        self.assertIn("20", msg)
+
+    @patch("scripts.post_review.get_head_sha", return_value="abc123")
+    @patch("scripts.post_review.check_tool")
+    @patch("scripts.post_review.post_json", return_value={"html_url": "http://example.com"})
+    @patch("scripts.post_review.warn")
+    def test_github_skip_no_diag_when_valid_lines_none(self, mock_warn, _post, _tool, _sha):
+        from scripts.post_review import post_github
+        data = {
+            "owner": "o", "repo": "r", "pr_number": 1,
+            "findings": [{"file": "src/app.py", "line": 99, "title": "Bug"}],
+        }
+        # valid_lines=None means validation was skipped, so is_line_valid returns True
+        # and the skip branch is never entered. We need a set that doesn't contain
+        # the line to trigger the skip, but None means no validation so no skip.
+        # Instead, use an empty set so the line is not found.
+        post_github(data, set())
+        mock_warn.assert_called_once()
+        msg = mock_warn.call_args[0][0]
+        self.assertIn("line not found in diff.", msg)
+        # With an empty set, valid lines list is [] not None, so diag is present but empty
+        self.assertIn("Valid lines for this file: []", msg)
+
+    @patch("scripts.post_review.get_head_sha", return_value="abc123")
+    @patch("scripts.post_review.check_tool")
+    @patch("scripts.post_review.post_json", return_value={})
+    @patch("scripts.post_review.fetch_gitlab_shas", return_value=("b", "h", "s"))
+    @patch("scripts.post_review.warn")
+    def test_gitlab_skip_includes_valid_lines(self, mock_warn, _shas, _post, _tool, _sha):
+        from scripts.post_review import post_gitlab
+        valid_lines = {("src/app.py", 5), ("src/app.py", 15)}
+        data = {
+            "owner": "o", "repo": "r", "pr_number": 1,
+            "findings": [{"file": "src/app.py", "line": 99, "title": "Bug"}],
+        }
+        post_gitlab(data, valid_lines)
+        # First call is for the summary note, skip warning is the second call
+        found_diag = False
+        for call in mock_warn.call_args_list:
+            msg = call[0][0]
+            if "Valid lines for this file:" in msg:
+                found_diag = True
+                self.assertIn("5", msg)
+                self.assertIn("15", msg)
+        self.assertTrue(found_diag, "Expected diagnostic in skip warning")
 
 
 if __name__ == "__main__":

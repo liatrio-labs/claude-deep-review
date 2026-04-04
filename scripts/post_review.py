@@ -221,6 +221,20 @@ def is_line_valid(valid_lines, filepath, line):
     return (stripped, line) in valid_lines
 
 
+def valid_lines_for_file(valid_lines, filepath):
+    """Return sorted list of up to 10 valid line numbers for *filepath* in the diff.
+
+    Returns None when *valid_lines* is None (validation was skipped).
+    """
+    if valid_lines is None:
+        return None
+    stripped = re.sub(r"^[ab]/", "", filepath)
+    lines = sorted(
+        {l for fp, l in valid_lines if fp == filepath or fp == stripped}
+    )
+    return lines[:10]
+
+
 # ---------------------------------------------------------------------------
 # Comment body rendering
 # ---------------------------------------------------------------------------
@@ -289,9 +303,13 @@ def post_github(data, valid_lines):
         filepath = f["file"]
         line = f["line"]
         if not is_line_valid(valid_lines, filepath, line):
+            diag = ""
+            vl = valid_lines_for_file(valid_lines, filepath)
+            if vl is not None:
+                diag = f" Valid lines for this file: {vl}"
             warn(
                 f"Skipping finding '{f.get('title', '?')}' at {filepath}:{line} "
-                "— line not found in diff."
+                f"— line not found in diff.{diag}"
             )
             skipped.append(f)
             continue
@@ -411,9 +429,13 @@ def post_gitlab(data, valid_lines):
             continue
 
         if not is_line_valid(valid_lines, filepath, line):
+            diag = ""
+            vl = valid_lines_for_file(valid_lines, filepath)
+            if vl is not None:
+                diag = f" Valid lines for this file: {vl}"
             warn(
                 f"Skipping finding '{f.get('title', '?')}' at {filepath}:{line} "
-                "— line not found in diff."
+                f"— line not found in diff.{diag}"
             )
             skipped += 1
             continue
