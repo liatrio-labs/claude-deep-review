@@ -11,8 +11,9 @@ Covers:
     body markers, empty filepath, duplicate signature)
   - detect_disagreement: consensus boost, suppression rules (intentional,
     generated), security escalation, singleton passthrough
-  - tag_findings / _is_test_correctness_finding / _dedup_test_analyzer:
-    main vs suggestion routing, test-analyzer promotion, dedup rule
+  - tag_findings / _is_test_correctness_finding / _dedup_cross_agent:
+    main vs suggestion routing, test-analyzer promotion, cross-agent dedup rule
+  - group_by_proximity: utility function for proximity grouping
   - load_exclusions / apply_exclusions: pattern matching, missing file
 """
 
@@ -34,6 +35,8 @@ from scripts.filter_findings import (
     normalize_field_names,
     _is_test_correctness_finding,
     _dedup_test_analyzer,
+    _dedup_cross_agent,
+    group_by_proximity,
     _route_by_dimension,
     _count_words,
     SEVERITY_ORDER,
@@ -726,6 +729,7 @@ class TestIsTestCorrectnessFinding(unittest.TestCase):
 
 
 class TestDedupTestAnalyzer(unittest.TestCase):
+    """Backward-compat wrapper: _dedup_test_analyzer delegates to _dedup_cross_agent."""
 
     def test_overlap_drops_test_analyzer(self):
         bug = _make_finding(id="bug-1", file="a.py", line_start=10, agent="bug-detector")
@@ -735,7 +739,7 @@ class TestDedupTestAnalyzer(unittest.TestCase):
         self.assertIn("bug-1", kept_ids)
         self.assertNotIn("test-1", kept_ids)
         self.assertEqual(len(dropped), 1)
-        self.assertEqual(dropped[0]["eliminated_by"], "dedup:test-analyzer")
+        self.assertEqual(dropped[0]["eliminated_by"], "dedup:cross-agent")
 
     def test_no_overlap_keeps_both(self):
         bug = _make_finding(id="bug-1", file="a.py", line_start=10, agent="bug-detector")
@@ -750,6 +754,155 @@ class TestDedupTestAnalyzer(unittest.TestCase):
         kept, dropped = _dedup_test_analyzer([bug, test])
         self.assertEqual(len(kept), 2)
         self.assertEqual(len(dropped), 0)
+
+
+# ---------------------------------------------------------------------------
+# _dedup_cross_agent / group_by_proximity
+# ---------------------------------------------------------------------------
+
+class TestGroupByProximity(unittest.TestCase):
+
+    def test_same_file_nearby_lines_grouped(self):
+        # Lines 10 and 12 both round to bucket 10 (round(10/5)*5=10, round(12/5)*5=10)
+        f1 = _make_finding(id="f1", file="src/x.py", line_start=10)
+        f2 = _make_finding(id="f2", file="src/x.py", line_start=12)
+        groups = group_by_proximity([f1, f2], line_proximity=5)
+        # Both lines bucket to the same value so they end up in one group
+        all_groups = list(groups.values())
+        ids_in_groups = [f["id"] for g in all_groups for f in g]
+        self.assertIn("f1", ids_in_groups)
+        self.assertIn("f2", ids_in_groups)
+        single_group = [g for g in all_groups if len(g) == 2]
+        self.assertEqual(len(single_group), 1)
+
+    def test_same_file_distant_lines_separated(self):
+        f1 = _make_finding(id="f1", file="src/x.py", line_start=10)
+        f2 = _make_finding(id="f2", file="src/x.py", line_start=100)
+        groups = group_by_proximity([f1, f2], line_proximity=5)
+        self.assertEqual(len(groups), 2)
+
+    def test_different_files_separated(self):
+        f1 = _make_finding(id="f1", file="a.py", line_start=10)
+        f2 = _make_finding(id="f2", file="b.py", line_start=10)
+        groups = group_by_proximity([f1, f2], line_proximity=5)
+        self.assertEqual(len(groups), 2)
+
+    def test_empty_input(self):
+        groups = group_by_proximity([], line_proximity=5)
+        self.assertEqual(groups, {})
+
+
+class TestDedupCrossAgent(unittest.TestCase):
+
+    def test_different_agents_same_location_core_wins(self):
+        # bug-detector (core dim=bug) vs test-analyzer (non-core dim=test_coverage)
+        bug = _make_finding(
+            id="bug-1", file="a.py", line_start=10,
+            agent="bug-detector", dimension="bug", confidence=80,
+        )
+        test = _make_finding(
+            id="test-1", file="a.py", line_start=12,
+            agent="test-analyzer", dimension="test_coverage", confidence=95,
+        )
+        kept, dropped = _dedup_cross_agent([bug, test])
+        kept_ids = [f["id"] for f in kept]
+        self.assertIn("bug-1", kept_ids)
+        self.assertNotIn("test-1", kept_ids)
+        self.assertEqual(len(dropped), 1)
+        self.assertEqual(dropped[0]["eliminated_by"], "dedup:cross-agent")
+
+    def test_different_agents_same_location_higher_confidence_wins(self):
+        # Both non-core: higher confidence wins
+        f1 = _make_finding(
+            id="f1", file="a.py", line_start=10,
+            agent="code-simplifier", dimension="simplification", confidence=90,
+        )
+        f2 = _make_finding(
+            id="f2", file="a.py", line_start=12,
+            agent="test-analyzer", dimension="test_coverage", confidence=70,
+        )
+        kept, dropped = _dedup_cross_agent([f1, f2])
+        kept_ids = [f["id"] for f in kept]
+        self.assertIn("f1", kept_ids)
+        self.assertNotIn("f2", kept_ids)
+
+    def test_different_agents_same_location_longer_desc_tiebreaks(self):
+        # Both non-core, same confidence: longer description wins
+        f1 = _make_finding(
+            id="f1", file="a.py", line_start=10,
+            agent="code-simplifier", dimension="simplification", confidence=80,
+            description="Short desc.",
+        )
+        f2 = _make_finding(
+            id="f2", file="a.py", line_start=11,
+            agent="test-analyzer", dimension="test_coverage", confidence=80,
+            description="This is a much longer description that has more detail about the problem.",
+        )
+        kept, dropped = _dedup_cross_agent([f1, f2])
+        kept_ids = [f["id"] for f in kept]
+        self.assertIn("f2", kept_ids)
+        self.assertNotIn("f1", kept_ids)
+
+    def test_same_agent_not_deduped(self):
+        # Two findings from same agent at same location are left alone
+        f1 = _make_finding(id="f1", file="a.py", line_start=10, agent="bug-detector", dimension="bug")
+        f2 = _make_finding(id="f2", file="a.py", line_start=11, agent="bug-detector", dimension="bug")
+        kept, dropped = _dedup_cross_agent([f1, f2])
+        self.assertEqual(len(kept), 2)
+        self.assertEqual(len(dropped), 0)
+
+    def test_no_overlap_different_files(self):
+        f1 = _make_finding(id="f1", file="a.py", line_start=10, agent="bug-detector")
+        f2 = _make_finding(id="f2", file="b.py", line_start=10, agent="test-analyzer")
+        kept, dropped = _dedup_cross_agent([f1, f2])
+        self.assertEqual(len(kept), 2)
+        self.assertEqual(len(dropped), 0)
+
+    def test_no_overlap_same_file_distant_lines(self):
+        f1 = _make_finding(id="f1", file="a.py", line_start=10, agent="bug-detector")
+        f2 = _make_finding(id="f2", file="a.py", line_start=100, agent="test-analyzer")
+        kept, dropped = _dedup_cross_agent([f1, f2])
+        self.assertEqual(len(kept), 2)
+        self.assertEqual(len(dropped), 0)
+
+    def test_three_way_dedup_core_wins(self):
+        # Three agents at same location: core dimension wins
+        sec = _make_finding(
+            id="sec-1", file="a.py", line_start=20,
+            agent="security-reviewer", dimension="security", confidence=75,
+        )
+        bug = _make_finding(
+            id="bug-1", file="a.py", line_start=21,
+            agent="bug-detector", dimension="bug", confidence=80,
+        )
+        test = _make_finding(
+            id="test-1", file="a.py", line_start=22,
+            agent="test-analyzer", dimension="test_coverage", confidence=95,
+        )
+        kept, dropped = _dedup_cross_agent([sec, bug, test])
+        # test-coverage is non-core so it loses to the two core findings.
+        # Among core, bug has higher confidence so it wins.
+        kept_ids = [f["id"] for f in kept]
+        self.assertNotIn("test-1", kept_ids)
+        self.assertIn("bug-1", kept_ids)
+        self.assertEqual(len(dropped), 2)
+        for d in dropped:
+            self.assertEqual(d["eliminated_by"], "dedup:cross-agent")
+
+    def test_stats_field_cross_agent_deduped(self):
+        # tag_findings routes through _dedup_cross_agent; stats must include cross_agent_deduped
+        bug = _make_finding(
+            id="bug-1", file="a.py", line_start=10,
+            agent="bug-detector", dimension="bug", confidence=80,
+        )
+        test = _make_finding(
+            id="test-1", file="a.py", line_start=12,
+            agent="test-analyzer", dimension="test_coverage", confidence=90,
+        )
+        _, elim_dedup, _, _ = tag_findings([bug, test])
+        # The eliminated dedup finding should be the test-analyzer one
+        self.assertEqual(len(elim_dedup), 1)
+        self.assertEqual(elim_dedup[0]["eliminated_by"], "dedup:cross-agent")
 
 
 # ---------------------------------------------------------------------------

@@ -41,7 +41,8 @@ Output JSON schema:
             "consensus_boosted":       N,   # confidence boosted due to multi-agent consensus
             "singleton_penalized":     N,   # singleton findings penalized -15 confidence (non-core dims)
             "dimension_routed":        N,   # findings routed to suggestion by dimension (BF-15a)
-            "test_analyzer_deduped":   N,   # test-analyzer duplicates dropped (another agent wins)
+            "cross_agent_deduped":      N,   # cross-agent duplicates dropped (winner by priority)
+            "test_analyzer_deduped":   N,   # backward-compatible alias for cross_agent_deduped
             "test_analyzer_promoted":  N,   # test-analyzer findings promoted to main report
             "tagged_main":             N,   # tagged for main report
             "tagged_suggestion":       N    # tagged as improvement suggestions
@@ -922,78 +923,123 @@ def _is_test_correctness_finding(finding):
     return False
 
 
-def _dedup_test_analyzer(findings):
+def group_by_proximity(findings, line_proximity=5):
     """
-    Apply the dedup rule: if a test-analyzer finding overlaps with another
-    agent's finding at the same file and line range, the non-test-analyzer
-    finding wins and the test-analyzer duplicate is dropped.
+    Group findings by (file, line_bucket) where line_bucket is computed by
+    rounding line_start to the nearest ``line_proximity`` lines.
 
-    Line overlap is defined as: both findings reference the same file and
-    their line numbers are within 5 lines of each other.
+    Two findings are considered co-located when they reference the same file
+    and their line_start values differ by at most ``line_proximity``.
 
-    Returns (deduplicated_findings, dropped_duplicates) where dropped_duplicates
-    is a list of test-analyzer findings that were removed, each with
-    eliminated_by="dedup:test-analyzer" and an elimination_reason.
+    Returns a dict mapping (file, line_bucket) -> list[finding].
+
+    This utility is shared between _dedup_cross_agent and apply_challenges.py
+    (T04), which uses the same proximity grouping to correlate challenge results
+    with original findings.
+    """
+    def _bucket(line, proximity):
+        try:
+            return round(int(line) / proximity) * proximity
+        except (TypeError, ValueError):
+            return 0
+
+    groups = {}
+    for finding in findings:
+        fpath = finding.get("file", "")
+        bucket = _bucket(finding.get("line_start", 0), line_proximity)
+        groups.setdefault((fpath, bucket), []).append(finding)
+
+    return groups
+
+
+def _dedup_cross_agent(findings):
+    """
+    Generalized cross-agent dedup: when two or more findings from *different*
+    agents reference the same file and are within 5 lines of each other, keep
+    only the best finding and eliminate the rest.
+
+    Winner selection priority (highest priority first):
+      1. Core dimension beats non-core.
+         Core dimensions: ``bug``, ``security``, ``cross_file_impact``.
+      2. Higher ``confidence`` value wins (after the above).
+      3. Longer ``description`` string wins (tie-break).
+
+    Losers receive ``eliminated_by="dedup:cross-agent"`` and an
+    ``elimination_reason`` explaining why the winner was chosen.
+
+    Groups where all findings come from the *same* agent are left intact so
+    that within-agent findings are not incorrectly deduplicated.
+
+    Returns (deduplicated_findings, dropped_duplicates).
     """
     LINE_PROXIMITY = 5
 
-    # Separate test-analyzer findings from others
-    test_findings = []
-    other_findings = []
-    for f in findings:
-        agent = f.get("agent", "").lower()
-        if agent == _AGENT_TEST_ANALYZER:
-            test_findings.append(f)
-        else:
-            other_findings.append(f)
-
-    # Build a lookup of (file, line_start) for non-test-analyzer findings
-    # Key: file path; value: list of line numbers
-    other_location_map = {}
-    for f in other_findings:
-        fpath = f.get("file", "")
-        line = f.get("line_start", 0)
+    def _safe_int_line(f):
         try:
-            line = int(line)
+            return int(f.get("line_start", 0))
         except (TypeError, ValueError):
-            line = 0
-        other_location_map.setdefault(fpath, []).append(line)
+            return 0
 
-    kept = list(other_findings)
+    def _winner_key(f):
+        """Higher key value = better priority (sort descending)."""
+        dim = f.get("dimension", "").lower()
+        is_core = dim in _CORE_DIMENSIONS
+        conf = f.get("confidence", 0)
+        desc_len = len(f.get("description", ""))
+        return (int(is_core), conf, desc_len)
+
+    groups = group_by_proximity(findings, line_proximity=LINE_PROXIMITY)
+
+    kept_ids = set()
     dropped = []
 
-    for tf in test_findings:
-        fpath = tf.get("file", "")
-        line = tf.get("line_start", 0)
-        try:
-            line = int(line)
-        except (TypeError, ValueError):
-            line = 0
+    for group in groups.values():
+        # Only apply cross-agent dedup when 2+ *different* agents appear
+        agents_in_group = {f.get("agent", "").lower() for f in group}
+        if len(group) < 2 or len(agents_in_group) < 2:
+            for f in group:
+                kept_ids.add(id(f))
+            continue
 
-        # Check if any non-test-analyzer finding covers the same location
-        overlapping = False
-        if fpath in other_location_map:
-            for other_line in other_location_map[fpath]:
-                if abs(other_line - line) <= LINE_PROXIMITY:
-                    overlapping = True
-                    break
+        # Sort by priority (best first)
+        ranked = sorted(group, key=_winner_key, reverse=True)
+        winner = ranked[0]
+        kept_ids.add(id(winner))
 
-        if overlapping:
-            dup = dict(tf)
-            dup["eliminated_by"] = "dedup:test-analyzer"
+        for loser in ranked[1:]:
+            loser_line = _safe_int_line(loser)
+            winner_line = _safe_int_line(winner)
+            dup = dict(loser)
+            dup["eliminated_by"] = "dedup:cross-agent"
             dup["elimination_reason"] = (
-                f"test-analyzer finding at {fpath}:{line} overlaps with another "
-                f"agent's finding within {LINE_PROXIMITY} lines; non-test-analyzer wins"
+                f"cross-agent dedup: finding at "
+                f"{loser.get('file', '?')}:{loser_line} "
+                f"(agent={loser.get('agent', '?')!r}, "
+                f"dim={loser.get('dimension', '?')!r}, "
+                f"conf={loser.get('confidence', '?')}) "
+                f"lost to agent={winner.get('agent', '?')!r} "
+                f"at line {winner_line} within {LINE_PROXIMITY} lines"
             )
             dropped.append(dup)
             warn(
-                f"[dedup] Dropped test-analyzer finding {tf.get('id', '?')!r} "
-                f"at {fpath}:{line} (overlaps with another agent)"
+                f"[dedup] Dropped finding {loser.get('id', '?')!r} "
+                f"(agent={loser.get('agent', '?')!r}) at "
+                f"{loser.get('file', '?')}:{loser_line} "
+                f"— lost to {winner.get('agent', '?')!r} (cross-agent dedup)"
             )
-        else:
-            kept.append(tf)
 
+    kept = [f for f in findings if id(f) in kept_ids]
     return kept, dropped
+
+
+def _dedup_test_analyzer(findings):
+    """
+    Backward-compatible wrapper: delegates to _dedup_cross_agent.
+
+    Retained so tests and external callers that import _dedup_test_analyzer
+    directly continue to work. New code should call _dedup_cross_agent instead.
+    """
+    return _dedup_cross_agent(findings)
 
 
 def tag_findings(findings):
@@ -1040,8 +1086,8 @@ def tag_findings(findings):
 
     Returns (tagged_findings, eliminated_duplicates, main_count, suggestion_count).
     """
-    # Step 1: Dedup test-analyzer overlaps
-    findings, dedup_dropped = _dedup_test_analyzer(findings)
+    # Step 1: Cross-agent dedup (generalizes old test-analyzer-only dedup)
+    findings, dedup_dropped = _dedup_cross_agent(findings)
 
     # Step 2 & 3: Dimension-based routing, then agent-based fallback
     main_count = 0
@@ -1307,7 +1353,8 @@ def main():
             "consensus_boosted": consensus_boosted,
             "singleton_penalized": singleton_penalized,
             "dimension_routed": dimension_routed,
-            "test_analyzer_deduped": len(elim_dedup),
+            "cross_agent_deduped": len(elim_dedup),
+            "test_analyzer_deduped": len(elim_dedup),  # backward-compat alias
             "test_analyzer_promoted": promoted_count,
             "tagged_main": tagged_main,
             "tagged_suggestion": tagged_suggestion,
