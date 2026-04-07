@@ -456,13 +456,15 @@ def _extract_symbols(description, evidence):
     _SNAKE_CASE_RE = re.compile(
         r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b"  # snake_case: at least one underscore
     )
+    _SPLIT_PUNCTUATION_RE = re.compile(r"[.()\[\]#:>-]+")  # Split on code punctuation
 
     for m in _CODE_PUNCTUATION_RE.finditer(combined_text):
         token = m.group(1)
-        for ident_m in _IDENT_RE.finditer(token):
-            ident = ident_m.group(0)
-            if len(ident) > 2:
-                raw_symbols.add(ident)
+        # Split on code punctuation to avoid concatenated identifiers
+        parts = _SPLIT_PUNCTUATION_RE.split(token)
+        for part in parts:
+            if part and re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", part) and len(part) > 2:
+                raw_symbols.add(part)
 
     for m in _SNAKE_CASE_RE.finditer(combined_text):
         raw_symbols.add(m.group(1))

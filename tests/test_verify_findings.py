@@ -385,6 +385,37 @@ class TestExtractSymbols(unittest.TestCase):
         self.assertIn("Foo", symbols)
         self.assertIn("bar", symbols)
 
+    def test_complex_chained_methods_split_correctly(self):
+        """V7-04: complex expressions like grantTypeShortcut.equals(substring(3, 5))
+        should split on punctuation to extract separate identifiers, not garbled
+        concatenations like 'equalssubstring35'."""
+        symbols = _extract_symbols(
+            "The expression grantTypeShortcut.equals(substring(3, 5)) evaluates the condition",
+            "",
+        )
+        # Should extract: grantTypeShortcut, equals, substring
+        self.assertIn("grantTypeShortcut", symbols)
+        self.assertIn("equals", symbols)
+        self.assertIn("substring", symbols)
+        # Should NOT extract garbled concatenations
+        self.assertNotIn("equalssubstring", symbols)
+        self.assertNotIn("equalssubstring35", symbols)
+
+    def test_deeply_nested_parentheses_split(self):
+        """Complex nested method calls should split on all punctuation boundaries."""
+        symbols = _extract_symbols(
+            "Processing with foo.bar(baz.qux(nested.value))",
+            "",
+        )
+        self.assertIn("foo", symbols)
+        self.assertIn("bar", symbols)
+        self.assertIn("baz", symbols)
+        self.assertIn("qux", symbols)
+        self.assertIn("nested", symbols)
+        self.assertIn("value", symbols)
+        # Ensure no concatenations occur
+        self.assertNotIn("barbaznested", symbols)
+
     def test_camelcase_only_english_words_skipped(self):
         """Tier 3: pure CamelCase English words (no code punctuation) are NOT extracted."""
         symbols = _extract_symbols(
