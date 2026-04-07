@@ -40,33 +40,40 @@ def validate_bash_command(hook_input):
     if not command:
         return False, "Empty command not allowed for subagents"
 
-    # Reject shell operators: pipes, semicolons, and other command chaining
-    forbidden_operators = ["|", ";", "&&", "||"]
-    for op in forbidden_operators:
-        if op in command:
-            return False, f"Shell operators not allowed in subagents"
-
-    # Reject single > (overwrite) unless it's part of >> (append)
-    # Simple approach: replace all >> with placeholder, then check for remaining >
-    cmd_without_append = command.replace(">>", "")
-    if ">" in cmd_without_append:
-        return False, "echo command must use >> (append) not > (overwrite)"
-
-    # Reject forbidden commands
+    # Reject forbidden commands (exact match on first token, not substring)
     forbidden_commands = ["grep", "cat", "git", "find"]
+    first_token = command.split()[0] if command.split() else ""
     for forbidden in forbidden_commands:
-        if forbidden in command.split()[0] if command.split() else False:
+        if forbidden == first_token:
             return False, f"Command '{forbidden}' not allowed in subagents"
 
-    # Validate echo-append pattern: echo ... >> $TMPDIR/deep-review-*
-    pattern = r"^\s*echo\s+.+\s+>>\s+\$TMPDIR/deep-review-[a-zA-Z0-9_.-]+$"
+    # Validate echo-append pattern: echo '...' >> $TMPDIR/deep-review-*
+    # Payload must be single-quoted to prevent subshell/backtick injection.
+    # Double-quotes around the path are optional (agents may quote with " or not).
+    # Use \Z (not $) to reject embedded newlines.
+    pattern = r"^\s*echo\s+'[^']*'\s+>>\s+\"?\$TMPDIR/deep-review-[a-zA-Z0-9_.:-]+\"?\Z"
 
     if re.match(pattern, command):
         return True, "Valid echo-append pattern"
 
-    # If we got here, check what part is wrong
+    # Command did not match — run structural checks to produce a helpful message.
+    # These checks are only reached for commands that failed the echo-append pattern,
+    # so they operate on the whole command string; false positives from JSON payload
+    # content are not possible here because a valid payload would have matched above.
+
     if "echo" not in command:
         return False, f"Command not allowed: {command}"
+
+    # Reject shell operators: pipes, semicolons, and other command chaining
+    forbidden_operators = ["|", ";", "&&", "||"]
+    for op in forbidden_operators:
+        if op in command:
+            return False, "Shell operators not allowed in subagents"
+
+    # Reject single > (overwrite) unless it's part of >> (append)
+    cmd_without_append = command.replace(">>", "")
+    if ">" in cmd_without_append:
+        return False, "echo command must use >> (append) not > (overwrite)"
 
     if "$TMPDIR/deep-review-" not in command:
         return False, "echo command must append to $TMPDIR/deep-review-*"

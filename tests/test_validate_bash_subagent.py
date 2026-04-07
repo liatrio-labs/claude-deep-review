@@ -213,6 +213,62 @@ class TestValidateBashCommand(unittest.TestCase):
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed)
 
+    # --- Adversarial pattern tests ---
+
+    def test_double_quoted_path_allowed(self):
+        """Double-quoted $TMPDIR path should be allowed (agents may quote the path)"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "command": 'echo \'{"id":"bug-1"}\' >> "$TMPDIR/deep-review-bug-detector-abc.ndjson"',
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow double-quoted path, got: {message}")
+
+    def test_ampersand_in_json_payload_allowed(self):
+        """&& inside single-quoted JSON payload should be allowed (not a shell operator)"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "command": "echo '{\"description\":\"a && b\"}' >> \"$TMPDIR/deep-review-out.ndjson\"",
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow && inside JSON payload, got: {message}")
+
+    def test_greater_than_in_json_payload_allowed(self):
+        """> inside single-quoted JSON payload should be allowed (not a redirect)"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "command": "echo '{\"description\":\"x > 0\"}' >> \"$TMPDIR/deep-review-out.ndjson\"",
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow > inside JSON payload, got: {message}")
+
+    def test_subshell_injection_blocked(self):
+        """Subshell injection via $() should be blocked (payload must be single-quoted)"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "command": "echo $(rm -rf /) >> $TMPDIR/deep-review-out.ndjson",
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed, "Should block subshell injection")
+
+    def test_backtick_injection_blocked(self):
+        """Backtick injection should be blocked (payload must be single-quoted)"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "command": "echo `whoami` >> $TMPDIR/deep-review-out.ndjson",
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed, "Should block backtick injection")
+
+    def test_newline_injection_blocked(self):
+        """Embedded newline in command should be blocked"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "command": "echo 'data' >> $TMPDIR/deep-review-out.ndjson\nrm -rf /",
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed, "Should block command with embedded newline")
+
 
 class TestValidateBashHookIntegration(unittest.TestCase):
     """Test the full hook integration with stdin/stdout/stderr"""
