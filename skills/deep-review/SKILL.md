@@ -107,23 +107,31 @@ Read `references/phase3-dispatch.md` for context scoping, agent roster, and disp
 
 ## Merge Phase 3 Outputs
 
-After all Phase 3 agents return, parse and merge their findings into a single JSON object before passing to Phase 4. This is an orchestrator step — no agents involved.
+After all Phase 3 agents return, persist each agent's text output and run the deterministic merge script. This is an orchestrator step — no agents involved.
 
-**Parsing incremental output.** Agents emit individual JSON blocks (one per finding) rather than a single array. Each agent's output contains zero or more JSON objects interspersed with `SKIP: ...` lines and investigation prose. To parse: extract all top-level JSON objects from each agent's text output (look for `{` ... `}` blocks that parse as valid JSON with an `"id"` field). Ignore SKIP lines and non-JSON text — these are investigation notes, not findings.
+**Step 1: Persist agent text returns.** For each agent, write its return text to `$TMPDIR/deep-review-text-{agent}-{head_sha_short}.txt` using the `python3 -c "import json; ..."` pattern.
 
-**Truncation detection.** If an agent's output ends mid-sentence or mid-JSON, or contains investigation prose but zero JSON findings and zero SKIP lines, note in methodology: "{agent-name} output truncated — findings lost." Do not re-dispatch — multi-agent redundancy covers the gap.
+**Step 2: Run the merge script:**
 
-**Four fields must be set correctly or the Phase 4-6 pipeline breaks:**
+```
+python3 {plugin_root}/scripts/merge_findings.py \
+  --findings-dir "$TMPDIR" \
+  --session-sha {head_sha_short} \
+  --agents bug-detector security-reviewer cross-file-impact test-analyzer \
+           conventions-and-intent [type-design-analyzer] code-simplifier \
+  --text-dir "$TMPDIR" \
+  --base-branch {base_branch} --head-sha {head_sha} \
+  --pr-number {pr_number} --owner {owner} --repo {repo} \
+  --output "$TMPDIR/deep-review-phase4-input-{head_sha_short}.json"
+```
 
-1. **`dimension`** — short name from agent output, NOT the agent name. Mapping: `bug-detector`→`"bug"`, `security-reviewer`→`"security"`, `cross-file-impact`→`"cross_file_impact"`, `test-analyzer`→`"test_coverage"`, `conventions-and-intent`→`"convention"`/`"intent"`/`"comment_accuracy"`, `type-design-analyzer`→`"type_design"`, `code-simplifier`→`"simplification"`.
+Omit `type-design-analyzer` from `--agents` if it was not dispatched.
 
-2. **`agent`** — injected by the orchestrator (agents do NOT emit this). Exact strings: `"bug-detector"`, `"security-reviewer"`, `"cross-file-impact"`, `"test-analyzer"`, `"conventions-and-intent"`, `"type-design-analyzer"`, `"code-simplifier"`.
+**Step 3: Read the output.** Check `methodology.truncation_warnings` — note any in the Review Methodology section of the final report.
 
-3. **`cross_file_refs`** — preserve exactly as returned. Used by `verify_findings.py` for "surfaced" classification.
+The merge script handles JSON parsing from both channels (NDJSON files written by agents via Bash, plus text fallback for behavioral drift), agent field injection, dimension validation, deduplication, and truncation detection. Do not construct the findings JSON manually.
 
-4. **`description`** — NOT `body`. (`body` is Phase 8 delivery only. `filter_findings.py` auto-normalizes as fallback, but use the correct name.)
-
-See `references/phase3-dispatch.md` "Merge Example" for the full merged JSON structure with all fields. Pass the merged object to `verify_findings.py` via the Step 4.0 python3 pattern in `references/validation-pipeline.md`.
+Pass the output file path directly to `verify_findings.py` in Phase 4 — see Step 4.0 in `references/validation-pipeline.md`.
 
 ---
 

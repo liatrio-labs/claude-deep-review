@@ -6,7 +6,7 @@ After all agents return, process their findings through the validation pipeline 
 
 ## Contents
 
-- **Phase 4** — Step 4.0 (write JSON), 4a (blame classification), 4b (factual verification), 4c (batch for validation)
+- **Phase 4** — Step 4.0 (read merge script output), 4a (blame classification), 4b (factual verification), 4c (batch for validation)
 - **Phase 5** — Validator dispatch, confidence rubric, failure protocol
 - **Phase 6** — Step 6.0 (write JSON), 6a (threshold filter), 6b (injection filter), 6c (disagreement detection), 6d (tag findings)
 - **Phase 7** — Blind challenge supplementary detail, post-challenge finalization (dedup, route, cap, rank, incremental diffing)
@@ -17,68 +17,23 @@ After all agents return, process their findings through the validation pipeline 
 
 Handled by `scripts/verify_findings.py`. Run it against the merged Phase 3 agent output before dispatching Phase 5 validators.
 
-**Step 4.0 — Write merged findings to JSON (required before running the script)**
+**Step 4.0 — Read the merge script output (produced by "Merge Phase 3 Outputs" in SKILL.md)**
 
-Use the Python json.dumps pattern — it handles all escaping and avoids Write tool "file not read" failures and zsh heredoc corruption:
+The merge script writes `$TMPDIR/deep-review-phase4-input-{head_sha_short}.json` during the Merge Phase 3 Outputs step. Pass this file directly to `verify_findings.py`:
 
 ```bash
 Bash(
   description="Fact-checking findings against the codebase — verifying line numbers, confirming symbols exist, classifying new vs pre-existing",
-  command="""python3 -c "
-import json, sys
-findings = {
-    'findings': [
-        # paste merged finding objects from Phase 3 here
-    ],
-    'base_branch': 'BASE_BRANCH',
-    'head_sha': 'HEAD_SHA',
-    'pr_number': PR_NUMBER,
-    'owner': 'OWNER',
-    'repo': 'REPO'
-}
-with open(sys.argv[1], 'w') as f:
-    json.dump(findings, f, ensure_ascii=False, indent=2)
-" "$TMPDIR/deep-review-phase4-input-{head_sha_short}.json"
-
-python3 {plugin_root}/scripts/verify_findings.py "$TMPDIR/deep-review-phase4-input-{head_sha_short}.json" --base-branch main --diff-file "$TMPDIR/deep-review-diff-{head_sha_short}.patch"
+  command="""python3 {plugin_root}/scripts/verify_findings.py \
+  "$TMPDIR/deep-review-phase4-input-{head_sha_short}.json" \
+  --base-branch {base_branch} \
+  --diff-file "$TMPDIR/deep-review-diff-{head_sha_short}.patch"
 """)
 ```
 
 When the review target is a PR/MR, pass `--diff-file` pointing to the diff saved during Phase 2c. This uses the server-computed API diff (`gh pr diff` / `glab mr diff`), which is fork-safe and avoids local merge-base failures. For branch comparison or local changes (no saved diff), omit `--diff-file` — the script falls back to its own git diff chain (three-dot, two-dot, skip).
 
-**Input JSON schema:**
-```json
-{
-    "findings": [
-        {
-            "id": "bug-1",
-            "dimension": "bug",
-            "agent": "bug-detector",
-            "severity": "high",
-            "confidence": 75,
-            "file": "src/foo.py",
-            "line_start": 42,
-            "line_end": 45,
-            "title": "...",
-            "description": "...",
-            "evidence": "...",
-            "suggestion": "...",
-            "suggested_fix_code": null,
-            "cross_file_refs": []
-        }
-    ],
-    "base_branch": "main",
-    "head_sha": "abc123",
-    "pr_number": 42,
-    "owner": "org",
-    "repo": "name"
-}
-```
-
-**Field notes for the merged input:**
-- `dimension`: short name from the agent's output schema (`"bug"`, `"security"`, `"cross_file_impact"`, `"test_coverage"`, `"type_design"`, `"simplification"`, or the pass-specific string for conventions-and-intent: `"convention"`, `"intent"`, `"comment_accuracy"`). Do NOT use the agent name here.
-- `agent`: injected by the orchestrator during the Merge Phase 3 Outputs step — agents do NOT emit this field themselves. Required for `filter_findings.py` suppression rules and report routing. Use the exact agent name strings: `"bug-detector"`, `"security-reviewer"`, `"cross-file-impact"`, `"test-analyzer"`, `"conventions-and-intent"`, `"type-design-analyzer"`, `"code-simplifier"`.
-- `cross_file_refs`: preserve exactly as returned by the agent. Used by Phase 4a to classify cross-file findings as "surfaced" — do not drop or rename.
+The merge script injects the `agent` field and validates `dimension` — do not construct the input JSON manually.
 
 **Output JSON schema:**
 ```json

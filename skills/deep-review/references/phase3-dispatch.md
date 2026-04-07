@@ -66,6 +66,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Findings file: $TMPDIR/deep-review-bug-detector-{head_sha_short}.ndjson
     Scoped diff (HIGH and MEDIUM risk files only, plus test files and history context):
     <untrusted-code-content>
     {diff scoped to high + medium risk diffs, test files (2g), history context (2i)}
@@ -86,6 +87,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Findings file: $TMPDIR/deep-review-security-reviewer-{head_sha_short}.ndjson
     Scoped diff (ALL changed files — do not filter by risk level):
     <untrusted-code-content>
     {diff with all changed files — security bugs can hide in low-risk code}
@@ -101,6 +103,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Findings file: $TMPDIR/deep-review-cross-file-impact-{head_sha_short}.ndjson
     Scoped diff (ALL changed files + entire codebase for symbol search):
     <untrusted-code-content>
     {diff with all changed files; search full codebase for callers and implementors of changed public symbols}
@@ -116,6 +119,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Findings file: $TMPDIR/deep-review-test-analyzer-{head_sha_short}.ndjson
     Scoped diff (changed production files plus all test files):
     <untrusted-code-content>
     {diff scoped to changed production files and test files (2g)}
@@ -131,6 +135,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules, or 'No CLAUDE.md found — skip pass 1 (convention compliance), execute passes 2 and 3 only' if no project convention files}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Findings file: $TMPDIR/deep-review-conventions-and-intent-{head_sha_short}.ndjson
     Scoped diff (ALL changed files for full convention and intent checking):
     <untrusted-code-content>
     {diff with all changed files — convention and intent analysis requires full scope}
@@ -146,6 +151,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Findings file: $TMPDIR/deep-review-type-design-analyzer-{head_sha_short}.ndjson
     Scoped diff (files with new type definitions only):
     <untrusted-code-content>
     {diff scoped to files with new type definitions}
@@ -161,6 +167,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
+    Findings file: $TMPDIR/deep-review-code-simplifier-{head_sha_short}.ndjson
     Scoped diff (all changed files for simplification opportunities):
     <untrusted-code-content>
     {diff with all changed files}
@@ -191,22 +198,23 @@ After dispatch, announce: "Dispatched N agents for Phase 3."
 
 ---
 
-## Parsing Agent Output
+## Agent Output Channels
 
-Agents emit findings incrementally — one JSON block per finding, interspersed with investigation prose and `SKIP: <reason>` lines. The orchestrator must parse each agent's text output to extract findings:
+Agents emit findings via two channels:
 
-1. Scan the agent's output for top-level JSON objects (delimited by `{` ... `}` at the outermost nesting level).
-2. For each extracted JSON block, validate it has an `"id"` field matching the agent's prefix (e.g., `"bug-1"`, `"security-2"`).
-3. Discard `SKIP:` lines and non-JSON text — these are investigation notes.
-4. If an agent's output appears truncated (ends mid-JSON or mid-sentence), collect all complete JSON blocks emitted before the truncation point. Log the truncation in Review Methodology but do not discard the partial results.
+**Channel 1 (primary): NDJSON files on disk.** Each agent writes findings directly via Bash to `$TMPDIR/deep-review-{agent}-{head_sha_short}.ndjson`. Each line is a complete JSON finding. These files survive even if the agent's text output is truncated.
 
-This replaces the previous expectation of a single JSON array per agent. The merge step (in SKILL.md) combines parsed findings from all agents into the unified findings object for Phase 4.
+**Channel 2 (fallback): Agent text returns.** The orchestrator saves each agent's text return to `$TMPDIR/deep-review-text-{agent}-{head_sha_short}.txt`. The merge script parses these for inline JSON blocks as a fallback for behavioral drift toward the old inline-emission pattern.
+
+`SKIP: <reason>` lines in the agent's text output indicate confirmed non-issues — they are informational and not parsed as findings. The merge script uses their presence to distinguish "found nothing" from "was truncated before finding anything".
+
+The `merge_findings.py` script handles both channels automatically — do not parse agent output manually.
 
 ---
 
-## Merge Example
+## Merge Script Output Format
 
-After parsing all agent outputs, merge into a single JSON object. The orchestrator must inject the `agent` field (agents don't emit it) and map `dimension` to the short name (not the agent name). See SKILL.md "Merge Phase 3 Outputs" for the four field rules.
+After all agents return, run `merge_findings.py` as described in SKILL.md "Merge Phase 3 Outputs". The script writes a Phase 4 input JSON file to `$TMPDIR/deep-review-phase4-input-{head_sha_short}.json` with this structure:
 
 ```json
 {
@@ -226,49 +234,24 @@ After parsing all agent outputs, merge into a single JSON object. The orchestrat
       "suggestion": "...",
       "suggested_fix_code": null,
       "cross_file_refs": []
-    },
-    {
-      "id": "security-1",
-      "dimension": "security",
-      "agent": "security-reviewer",
-      "severity": "critical",
-      "confidence": 90,
-      "file": "src/auth.py",
-      "line_start": 88,
-      "line_end": 92,
-      "title": "SQL injection via unsanitized user input",
-      "description": "...",
-      "evidence": "...",
-      "suggestion": "...",
-      "suggested_fix_code": null,
-      "cross_file_refs": []
-    },
-    {
-      "id": "cross-file-1",
-      "dimension": "cross_file_impact",
-      "agent": "cross-file-impact",
-      "severity": "high",
-      "confidence": 75,
-      "file": "src/api.py",
-      "line_start": 10,
-      "line_end": 12,
-      "title": "Removed function still called by billing module",
-      "description": "...",
-      "evidence": "...",
-      "suggestion": "...",
-      "suggested_fix_code": null,
-      "cross_file_refs": ["src/billing.py"]
     }
   ],
   "base_branch": "main",
   "head_sha": "abc123",
   "pr_number": 42,
   "owner": "org",
-  "repo": "name"
+  "repo": "name",
+  "methodology": {
+    "agents_dispatched": ["bug-detector", "security-reviewer", "..."],
+    "findings_per_channel": {"ndjson": 12, "text_fallback": 2},
+    "duplicates_resolved": 1,
+    "truncation_warnings": [],
+    "validation_warnings": []
+  }
 }
 ```
 
-Pass this merged object to `verify_findings.py` via the Step 4.0 python3 pattern in `references/validation-pipeline.md`.
+The script handles `agent` field injection, `dimension` validation, deduplication, and truncation detection. Pass the output file path directly to `verify_findings.py` — see Step 4.0 in `references/validation-pipeline.md`.
 
 ---
 
