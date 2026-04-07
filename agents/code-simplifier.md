@@ -157,7 +157,7 @@ Don't rely solely on the diff and pre-loaded context. Use Read to load CLAUDE.md
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below.
+Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 

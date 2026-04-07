@@ -481,7 +481,6 @@ class TestDetectTruncation(unittest.TestCase):
             text_findings=text_findings,
             text_has_prose=text_has_prose,
             text_has_skip=text_has_skip,
-            ndjson_paths={a: f"/tmp/{a}.ndjson" for a in agents},
         )
 
     def test_empty_ndjson_and_prose_triggers_warning(self):
@@ -530,7 +529,6 @@ class TestDetectTruncation(unittest.TestCase):
             text_findings={"bug-detector": [], "security-reviewer": []},
             text_has_prose={"bug-detector": True, "security-reviewer": True},
             text_has_skip={"bug-detector": False, "security-reviewer": False},
-            ndjson_paths={a: f"/tmp/{a}.ndjson" for a in agents},
         )
         self.assertEqual(len(warns), 1)
         self.assertIn("bug-detector", warns[0])

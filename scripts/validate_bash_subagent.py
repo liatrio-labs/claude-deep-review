@@ -24,13 +24,28 @@ def validate_bash_command(hook_input):
     Validate a bash command for subagent execution.
 
     Args:
-        hook_input (dict): Hook input with 'agent_id' and 'command'
+        hook_input (dict): Hook input from Claude Code PreToolUse event.
+            Expected schema: {
+                "tool_input": {"command": "..."},
+                "agent_id": "...",       # present for subagents
+                "agent_type": "...",     # present for subagents
+                ...
+            }
+            Falls back to top-level "command" for forward compatibility.
 
     Returns:
         tuple: (allowed: bool, message: str)
     """
-    agent_id = hook_input.get("agent_id")
-    command = hook_input.get("command", "").strip()
+    # Detect subagent: check agent_id first, fall back to agent_type.
+    # Both are absent for the main orchestrator session.
+    # Claude Code PreToolUse schema includes agent_id for subagents.
+    # agent_type fallback covers forward compatibility with schema changes.
+    # If neither key exists, we conservatively treat it as orchestrator (allow).
+    agent_id = hook_input.get("agent_id") or hook_input.get("agent_type")
+
+    # Extract command from tool_input (Claude Code schema), with top-level fallback
+    tool_input = hook_input.get("tool_input", {})
+    command = (tool_input.get("command") or hook_input.get("command", "")).strip()
 
     # Orchestrator (no agent_id) is allowed all commands
     if not agent_id:
@@ -42,16 +57,32 @@ def validate_bash_command(hook_input):
 
     # Reject forbidden commands (exact match on first token, not substring)
     forbidden_commands = ["grep", "cat", "git", "find"]
-    first_token = command.split()[0] if command.split() else ""
+    tokens = command.split()
+    first_token = tokens[0] if tokens else ""
     for forbidden in forbidden_commands:
         if forbidden == first_token:
             return False, f"Command '{forbidden}' not allowed in subagents"
 
     # Validate echo-append pattern: echo '...' >> $TMPDIR/deep-review-*
-    # Payload must be single-quoted to prevent subshell/backtick injection.
-    # Double-quotes around the path are optional (agents may quote with " or not).
+    # Allowed quoting styles for the payload:
+    #   Single-quoted:  echo '...'       (no expansion, safest)
+    #   Double-quoted:  echo "..."       (needed when description contains apostrophes)
+    #   ANSI-C quoted:  echo $'...'      (allows \' escape sequences)
+    # Double-quotes around the path are optional.
     # Use \Z (not $) to reject embedded newlines.
-    pattern = r"^\s*echo\s+'[^']*'\s+>>\s+\"?\$TMPDIR/deep-review-[a-zA-Z0-9_.:-]+\"?\Z"
+    # Allowed payload quoting styles:
+    #   Single-quoted:  echo '...'   (no expansion — safest, use for most findings)
+    #   ANSI-C quoted:  echo $'...'  (allows \' escapes — use when description has apostrophes)
+    # Double-quoted payloads are NOT allowed because $() and `` are shell expansion vectors.
+    pattern = (
+        r"^\s*echo\s+"
+        r"(?:"
+        r"'[^']*'"                    # single-quoted: no single quotes in payload
+        r"|"
+        r"\$'(?:[^'\\]|\\.)*'"       # ANSI-C quoted: allows backslash escapes
+        r")"
+        r"\s+>>\s+\"?\$TMPDIR/deep-review-[a-zA-Z0-9_.:-]+\"?\Z"
+    )
 
     if re.match(pattern, command):
         return True, "Valid echo-append pattern"

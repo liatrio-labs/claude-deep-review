@@ -369,7 +369,6 @@ def detect_truncation(
     text_findings: dict[str, list[dict]],
     text_has_prose: dict[str, bool],
     text_has_skip: dict[str, bool],
-    ndjson_paths: dict[str, str],
 ) -> list[str]:
     """Detect agents whose output may have been truncated.
 
@@ -480,8 +479,7 @@ def merge(
         text_has_skip[agent] = has_skip
         all_warnings.extend(warns)
 
-    # --- Count before dedup (pre-validation raw counts for truncation detection) ---
-    ndjson_count = sum(len(v) for v in ndjson_findings.values())
+    # --- Pre-validation raw counts (for truncation detection only) ---
     ndjson_raw_counts = {agent: len(findings) for agent, findings in ndjson_findings.items()}
 
     # --- Inject agent fields ---
@@ -508,9 +506,9 @@ def merge(
     # --- Deduplicate ---
     merged_raw, duplicates_resolved = deduplicate(ndjson_findings, text_findings)
 
-    # Text fallback count = findings that came exclusively from text channel
-    # (i.e., not in ndjson)
+    # Channel counts (both post-validation, post-dedup for consistent measurement)
     ndjson_ids = {f["id"] for findings in ndjson_findings.values() for f in findings if "id" in f}
+    ndjson_count = sum(1 for f in merged_raw if f.get("id") in ndjson_ids)
     text_fallback_count = sum(
         1 for f in merged_raw
         if f.get("id") not in ndjson_ids
@@ -526,7 +524,7 @@ def merge(
     # M5: text fallback with valid JSON blocks shouldn't trigger truncation warning
     truncation_warnings = detect_truncation(
         agents, ndjson_raw_counts, text_findings_pre_validation,
-        text_has_prose, text_has_skip, ndjson_paths
+        text_has_prose, text_has_skip
     )
 
     # Aggregate all warnings into categories

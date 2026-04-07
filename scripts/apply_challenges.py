@@ -67,13 +67,15 @@ No external Python dependencies — stdlib only.
 """
 
 import argparse
+import copy
 import json
+import os
 import sys
 from datetime import datetime, timezone
 
 # Import shared dedup utility from filter_findings (stdlib only, same package)
-sys.path.insert(0, __import__("os").path.dirname(__file__))
-from filter_findings import group_by_proximity, _dedup_cross_agent  # noqa: E402
+sys.path.insert(0, os.path.dirname(__file__))
+from filter_findings import dedup_cross_agent  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +290,7 @@ def apply_challenges(findings, challenges):
         justification = entry.get("justification")
 
         # Annotate challenge metadata on the finding
-        finding = dict(finding)  # shallow copy so we don't mutate input
+        finding = copy.deepcopy(finding)  # deep copy so nested structures are independent
         finding["challenge_score"] = score
         if justification:
             finding["challenge_justification"] = justification
@@ -442,6 +444,7 @@ def main():
         default=None,
         help=(
             "Cap the final filtered list at N findings (default: no cap). "
+            "Pass 0 for no limit (same as omitting). "
             "Findings are ranked by severity → confidence → description length "
             "before the cap is applied."
         ),
@@ -464,11 +467,8 @@ def main():
     # ------------------------------------------------------------------
     # Cross-agent dedup (re-run after challenge processing)
     # ------------------------------------------------------------------
-    active, dedup_dropped = _dedup_cross_agent(active)
-    dedup_elim = []
-    for f in dedup_dropped:
-        # dedup already sets eliminated_by="dedup:cross-agent"
-        dedup_elim.append(f)
+    active, dedup_dropped = dedup_cross_agent(active)
+    dedup_elim = list(dedup_dropped)  # dedup already sets eliminated_by="dedup:cross-agent"
 
     # ------------------------------------------------------------------
     # Rank and cap

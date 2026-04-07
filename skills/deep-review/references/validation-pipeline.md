@@ -114,7 +114,7 @@ Parallel validation agents assess findings that need LLM judgment. **Always use 
 
 **Scope:** All findings that passed Phase 4 verification. No findings skip validation regardless of confidence — high-confidence findings benefit from independent assessment because LLM self-assessed confidence clusters in the 80-100% range and may mask reasoning errors.
 
-**Before dispatching validators:** `apply_validations.py` automatically saves each finding's current confidence as `original_confidence` before applying validator adjustments. This field is used by the Phase 6 contestation mechanism to detect large validator disagreements — no orchestrator action required.
+**Confidence preservation:** When `apply_validations.py` runs after validators return (Step 6.0a), it automatically saves each finding's pre-validation confidence as `original_confidence` before applying validator adjustments. This field is used by the Phase 6 contestation mechanism to detect large validator disagreements — no orchestrator action required.
 
 **Dispatch:** Spawn one Sonnet agent per batch from Phase 4c. Launch all agents in a single message with multiple Agent tool calls for true parallel execution.
 
@@ -183,7 +183,7 @@ Handled by `scripts/filter_findings.py`. Run it against the Phase 5 validated fi
 
 **Step 6.0 — Apply validator confidence adjustments, then filter**
 
-**Step 6.0a — Apply validations** using `apply_validations.py`. Write each validator's output as a combined `[{id, confidence, justification}]` JSON array to `$TMPDIR/deep-review-validations-{head_sha_short}.json`, then run:
+**Step 6.0a — Apply validations** using `apply_validations.py`. Collect validator outputs into a combined `[{id, confidence, justification}]` JSON array. **Field mapping:** validators return `finding_id` — rename to `id`. Write to `$TMPDIR/deep-review-validations-{head_sha_short}.json`, then run:
 
 ```bash
 Bash(
@@ -217,9 +217,12 @@ Bash(
     "stats": {
         "total": 10,
         "passed_threshold": 8,
+        "contested_count": 1,
         "injections_removed": 1,
         "consensus_boosted": 2,
-        "test_analyzer_deduped": 1,
+        "singleton_penalized": 1,
+        "dimension_routed": 2,
+        "cross_agent_deduped": 1,
         "test_analyzer_promoted": 0,
         "tagged_main": 6,
         "tagged_suggestion": 2
@@ -350,7 +353,7 @@ After dispatch, announce: "Dispatched N agents for Phase 7." (N must equal the n
 
 ## Post-challenge finalization — apply_challenges.py
 
-Write each challenger's output as a combined `[{id, score, justification}]` JSON array to `$TMPDIR/deep-review-challenges-{head_sha_short}.json`, then run:
+Collect challenger outputs into a combined `[{id, score, justification}]` JSON array. **Field mapping:** challengers return `confidence_claim_is_correct` — rename to `score`, and add the `id` of the challenged finding. Write to `$TMPDIR/deep-review-challenges-{head_sha_short}.json`, then run:
 
 ```bash
 Bash(
@@ -373,7 +376,7 @@ The script applies challenge thresholds, re-routes surfaced findings, re-runs cr
 **Output JSON schema:**
 ```json
 {
-    "filtered": [...],
+    "findings": [...],
     "eliminated": [...],
     "stats": {
         "total_input": 10,

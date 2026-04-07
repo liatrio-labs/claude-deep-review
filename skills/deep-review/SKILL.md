@@ -59,7 +59,8 @@ Store the result as `head_sha_short`. All subsequent temp file references use th
 - `$TMPDIR/deep-review-phase5-output-{head_sha_short}.json` (apply_validations.py output)
 - `$TMPDIR/deep-review-phase6-output-{head_sha_short}.json` (filter_findings.py output)
 - `$TMPDIR/deep-review-challenges-{head_sha_short}.json` (Phase 7 challenger outputs)
-- `$TMPDIR/deep-review-delivery-{head_sha_short}.json` (apply_challenges.py output → Phase 8 input)
+- `$TMPDIR/deep-review-delivery-{head_sha_short}.json` (apply_challenges.py output)
+- `$TMPDIR/deep-review-post-review-input-{head_sha_short}.json` (Phase 8 delivery JSON for post_review.py)
 
 ### Resolve review target
 
@@ -180,7 +181,7 @@ Read `references/validation-pipeline.md` Phase 5 for the confidence rubric, disp
 
 After dispatch, announce: "Dispatched N agents for Phase 5."
 
-**Apply validator results** using `apply_validations.py`. Write each validator's output (a `[{id, confidence, justification}]` JSON array) to `$TMPDIR/deep-review-validations-{head_sha_short}.json`, then run:
+**Apply validator results** using `apply_validations.py`. Collect each validator's per-finding assessments into a single `[{id, confidence, justification}]` JSON array. Note: validators return `finding_id` — map this to `id` when constructing the array. Write to `$TMPDIR/deep-review-validations-{head_sha_short}.json`, then run:
 
 ```
 python3 {plugin_root}/scripts/apply_validations.py \
@@ -250,7 +251,7 @@ After dispatch, announce: "Dispatched N agents for Phase 7."
 
 ### Post-challenge finalization
 
-**Apply challenge results** using `apply_challenges.py`. Write each challenger's output (a `[{id, score, justification}]` JSON array) to `$TMPDIR/deep-review-challenges-{head_sha_short}.json`, then run:
+**Apply challenge results** using `apply_challenges.py`. Collect each challenger's assessment into a single `[{id, score, justification}]` JSON array. Note: challengers return `confidence_claim_is_correct` — map this to `score`, and add the `id` from the finding that was challenged. Write to `$TMPDIR/deep-review-challenges-{head_sha_short}.json`, then run:
 
 ```
 python3 {plugin_root}/scripts/apply_challenges.py \

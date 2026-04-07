@@ -41,7 +41,7 @@ SKILL.md derives `{plugin_root}` as two levels above the skill base directory. A
 ## Tests
 
 - pytest with `unittest.TestCase` style. Run: `python -m pytest tests/ -q`
-- 238 tests covering `verify_findings.py`, `filter_findings.py`, `post_review.py`.
+- 477 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
 
 ## Writing pipeline JSON
 

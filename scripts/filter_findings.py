@@ -933,7 +933,7 @@ def group_by_proximity(findings, line_proximity=5):
 
     Returns a dict mapping (file, line_bucket) -> list[finding].
 
-    This utility is shared between _dedup_cross_agent and apply_challenges.py
+    This utility is shared between dedup_cross_agent and apply_challenges.py
     (T04), which uses the same proximity grouping to correlate challenge results
     with original findings.
     """
@@ -952,7 +952,7 @@ def group_by_proximity(findings, line_proximity=5):
     return groups
 
 
-def _dedup_cross_agent(findings):
+def dedup_cross_agent(findings):
     """
     Generalized cross-agent dedup: when two or more findings from *different*
     agents reference the same file and are within 5 lines of each other, keep
@@ -960,7 +960,7 @@ def _dedup_cross_agent(findings):
 
     Winner selection priority (highest priority first):
       1. Core dimension beats non-core.
-         Core dimensions: ``bug``, ``security``, ``cross_file_impact``.
+         Core dimensions: ``bug``, ``security``, ``cross_file_impact``, ``intent``.
       2. Higher ``confidence`` value wins (after the above).
       3. Longer ``description`` string wins (tie-break).
 
@@ -990,7 +990,7 @@ def _dedup_cross_agent(findings):
 
     groups = group_by_proximity(findings, line_proximity=LINE_PROXIMITY)
 
-    kept_ids = set()
+    kept_finding_ids = set()   # tracks finding["id"] values, not Python id()
     dropped = []
 
     for group in groups.values():
@@ -998,20 +998,26 @@ def _dedup_cross_agent(findings):
         agents_in_group = {f.get("agent", "").lower() for f in group}
         if len(group) < 2 or len(agents_in_group) < 2:
             for f in group:
-                kept_ids.add(id(f))
+                fid = f.get("id", "")
+                if fid:
+                    kept_finding_ids.add(fid)
             continue
 
         # Sort by priority (best first)
         ranked = sorted(group, key=_winner_key, reverse=True)
         winner = ranked[0]
         winner_agent = winner.get("agent", "").lower()
-        kept_ids.add(id(winner))
+        winner_id = winner.get("id", "")
+        if winner_id:
+            kept_finding_ids.add(winner_id)
 
         for loser in ranked[1:]:
             loser_agent = loser.get("agent", "").lower()
+            loser_id = loser.get("id", "")
             # Keep same-agent siblings of the winner — only drop different-agent findings
             if loser_agent == winner_agent:
-                kept_ids.add(id(loser))
+                if loser_id:
+                    kept_finding_ids.add(loser_id)
                 continue
             loser_line = _safe_int_line(loser)
             winner_line = _safe_int_line(winner)
@@ -1034,18 +1040,20 @@ def _dedup_cross_agent(findings):
                 f"— lost to {winner.get('agent', '?')!r} (cross-agent dedup)"
             )
 
-    kept = [f for f in findings if id(f) in kept_ids]
+    # Findings without an "id" field pass through (they can't be tracked for dedup)
+    kept = [f for f in findings
+            if f.get("id", "") in kept_finding_ids or not f.get("id")]
     return kept, dropped
 
 
 def _dedup_test_analyzer(findings):
     """
-    Backward-compatible wrapper: delegates to _dedup_cross_agent.
+    Backward-compatible wrapper: delegates to dedup_cross_agent.
 
     Retained so tests and external callers that import _dedup_test_analyzer
-    directly continue to work. New code should call _dedup_cross_agent instead.
+    directly continue to work. New code should call dedup_cross_agent instead.
     """
-    return _dedup_cross_agent(findings)
+    return dedup_cross_agent(findings)
 
 
 def tag_findings(findings):
@@ -1093,7 +1101,7 @@ def tag_findings(findings):
     Returns (tagged_findings, eliminated_duplicates, main_count, suggestion_count).
     """
     # Step 1: Cross-agent dedup (generalizes old test-analyzer-only dedup)
-    findings, dedup_dropped = _dedup_cross_agent(findings)
+    findings, dedup_dropped = dedup_cross_agent(findings)
 
     # Step 2 & 3: Dimension-based routing, then agent-based fallback
     main_count = 0

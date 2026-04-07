@@ -12,7 +12,7 @@ Covers:
     unchallenged pass-through, missing id in challenge, missing score,
     non-integer score, justification copied
   - rank_findings: severity order, confidence tiebreak, description-length tiebreak
-  - _dedup_cross_agent reuse: cross-agent dedup runs post-challenge
+  - dedup_cross_agent reuse: cross-agent dedup runs post-challenge
   - max_findings cap: cap applied after ranking, cap_dropped populated
   - main() CLI integration: stdout output, --output file, --max-findings,
     prior eliminated passed through, stats fields
@@ -532,12 +532,12 @@ class TestRankFindings(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class TestCrossAgentDedupIntegration(unittest.TestCase):
-    """Verify that _dedup_cross_agent is applied after challenge processing."""
+    """Verify that dedup_cross_agent is applied after challenge processing."""
 
     def test_dedup_runs_post_challenge(self):
         """Two different agents at same location: core dimension wins."""
         from scripts.apply_challenges import apply_challenges, rank_findings
-        from scripts.filter_findings import _dedup_cross_agent
+        from scripts.filter_findings import dedup_cross_agent
 
         findings = [
             _make_finding(
@@ -554,7 +554,7 @@ class TestCrossAgentDedupIntegration(unittest.TestCase):
         active, _, _ = apply_challenges(findings, challenges)
 
         # Now run dedup (as main() would)
-        deduped, dropped = _dedup_cross_agent(active)
+        deduped, dropped = dedup_cross_agent(active)
         deduped_ids = [f["id"] for f in deduped]
         self.assertIn("bug-1", deduped_ids)
         self.assertNotIn("test-1", deduped_ids)
@@ -586,6 +586,35 @@ class TestMaxFindingsCap(unittest.TestCase):
         findings = [_make_finding(id=f"f{i}") for i in range(10)]
         ranked = rank_findings(findings)
         self.assertEqual(len(ranked), 10)
+
+    def test_max_findings_zero_means_no_limit(self):
+        """--max-findings 0 is treated as no limit (same as omitting)."""
+        import io
+        from unittest.mock import patch
+        from scripts.apply_challenges import main
+
+        findings = [_make_finding(id=f"f{i}") for i in range(10)]
+        challenges = [{"id": f"f{i}", "score": 90} for i in range(10)]
+
+        filtered_json = json.dumps({"filtered": findings})
+        challenges_json = json.dumps(challenges)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as ff:
+            ff.write(filtered_json)
+            ff.flush()
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as cf:
+                cf.write(challenges_json)
+                cf.flush()
+
+                buf = io.StringIO()
+                with patch("sys.stdout", buf), \
+                     patch("sys.argv", ["apply_challenges.py", ff.name, cf.name,
+                                        "--max-findings", "0"]):
+                    main()
+
+        result = json.loads(buf.getvalue())
+        self.assertEqual(len(result["findings"]), 10)
+        self.assertEqual(result["stats"]["cap_dropped"], 0)
 
 
 # ---------------------------------------------------------------------------
