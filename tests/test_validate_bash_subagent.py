@@ -165,7 +165,7 @@ class TestValidateBashCommand(unittest.TestCase):
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed)
-        self.assertIn("$TMPDIR/deep-review", message)
+        self.assertIn("/deep-review-", message)
 
     def test_subagent_echo_to_home_blocked(self):
         """Subagent echo to home directory should be blocked"""
@@ -236,6 +236,65 @@ class TestValidateBashCommand(unittest.TestCase):
     def test_missing_command_field(self):
         """Missing command field should be treated as empty command"""
         hook_input = {"agent_id": "bug-detector"}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    # --- Literal path tests (resolved $TMPDIR) ---
+
+    def test_literal_path_allowed(self):
+        """Literal absolute path (resolved TMPDIR) should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "echo '{\"id\":\"bug-1\"}' >> /var/folders/dn/abc123/T/deep-review-bug-detector-abc12345.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow literal path, got: {message}")
+
+    def test_literal_path_quoted_allowed(self):
+        """Double-quoted literal path should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "/private/tmp/deep-review-security-reviewer-def456.ndjson"'},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow quoted literal path, got: {message}")
+
+    def test_literal_path_tmp_allowed(self):
+        """Simple /tmp literal path should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "echo 'data' >> /tmp/deep-review-test-analyzer-abc.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow /tmp literal path, got: {message}")
+
+    def test_literal_path_traversal_blocked(self):
+        """Literal path with traversal should be blocked by post-match check"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "echo 'data' >> /var/folders/../etc/deep-review-out.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        # Dots are valid regex chars; traversal is caught by post-match ".." check
+        self.assertFalse(allowed)
+
+    def test_literal_path_dangerous_directory_blocked(self):
+        """Literal path to non-temp directory should be blocked"""
+        for path in ["/etc/deep-review-evil", "/bin/deep-review-evil",
+                     "/usr/local/bin/deep-review-evil", "/home/user/deep-review-evil"]:
+            hook_input = {
+                "agent_id": "bug-detector",
+                "tool_input": {"command": f"echo 'data' >> {path}"},
+            }
+            allowed, message = validate_bash_command(hook_input)
+            self.assertFalse(allowed, f"Should block write to {path}, got: {message}")
+
+    def test_literal_path_filename_traversal_blocked(self):
+        """deep-review-.. as filename should be blocked by post-match check"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "echo 'data' >> /tmp/deep-review-.."},
+        }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed)
 

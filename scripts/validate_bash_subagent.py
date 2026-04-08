@@ -3,12 +3,12 @@
 PreToolUse hook: validate_bash_subagent
 
 Restricts Bash usage in subagents to the finding-emission echo-append pattern only:
-  echo ... >> $TMPDIR/deep-review-*
+  echo ... >> <tmpdir>/deep-review-*
 
 Reads hook input JSON from stdin. Checks:
 - agent_id: if missing/null (orchestrator), allow all commands
 - command: must match echo-append pattern for subagents
-- path: must be $TMPDIR/deep-review-*
+- path: must be $TMPDIR/deep-review-* or a resolved literal path ending in /deep-review-*
 
 Exit 0: command allowed
 Exit 2: command blocked (with stderr feedback)
@@ -65,17 +65,15 @@ def validate_bash_command(hook_input):
         if forbidden == first_token:
             return False, f"Command '{forbidden}' not allowed in subagents"
 
-    # Validate echo-append pattern: echo '...' >> $TMPDIR/deep-review-*
-    # Allowed quoting styles for the payload:
-    #   Single-quoted:  echo '...'       (no expansion, safest)
-    #   Double-quoted:  echo "..."       (needed when description contains apostrophes)
-    #   ANSI-C quoted:  echo $'...'      (allows \' escape sequences)
-    # Double-quotes around the path are optional.
-    # Use \Z (not $) to reject embedded newlines.
+    # Validate echo-append pattern: echo '...' >> <path>/deep-review-*
+    # Path can be $TMPDIR/deep-review-* or a resolved literal like /var/folders/.../T/deep-review-*
+    # The orchestrator resolves $TMPDIR to a literal path in Phase 1 to avoid sandbox
+    # permission prompts (sandbox can't statically verify $TMPDIR targets).
     # Allowed payload quoting styles:
     #   Single-quoted:  echo '...'   (no expansion — safest, use for most findings)
     #   ANSI-C quoted:  echo $'...'  (allows \' escapes — use when description has apostrophes)
     # Double-quoted payloads are NOT allowed because $() and `` are shell expansion vectors.
+    # Use \Z (not $) to reject embedded newlines.
     pattern = (
         r"^\s*echo\s+"
         r"(?:"
@@ -83,10 +81,20 @@ def validate_bash_command(hook_input):
         r"|"
         r"\$'(?:[^'\\]|\\.)*'"       # ANSI-C quoted: allows backslash escapes
         r")"
-        r"\s+>>\s+\"?\$TMPDIR/deep-review-[a-zA-Z0-9_.:-]+\"?\Z"
+        r"\s+>>\s+\"?"
+        r"(?:"
+        r"\$TMPDIR"                           # unexpanded $TMPDIR
+        r"|"
+        r"/(?:tmp|private/tmp|var/folders)"   # literal temp-directory roots only
+        r"(?:/[a-zA-Z0-9_.:-]+)*"            # subdirectory components (strict charset is intentional security guardrail)
+        r")"
+        r"/deep-review-[a-zA-Z0-9_.:-]+\"?\Z"
     )
 
     if re.match(pattern, command):
+        # Reject path traversal in literal paths (.. could escape intended directory)
+        if ".." in command.split(">>", 1)[-1]:
+            return False, "Path traversal (..) not allowed in output path"
         return True, "Valid echo-append pattern"
 
     # Command did not match — run structural checks to produce a helpful message.
@@ -108,8 +116,8 @@ def validate_bash_command(hook_input):
     if ">" in cmd_without_append:
         return False, "echo command must use >> (append) not > (overwrite)"
 
-    if "$TMPDIR/deep-review-" not in command:
-        return False, "echo command must append to $TMPDIR/deep-review-*"
+    if "/deep-review-" not in command:
+        return False, "echo command must append to <tmpdir>/deep-review-*"
 
     return False, f"Command does not match valid echo-append pattern: {command}"
 

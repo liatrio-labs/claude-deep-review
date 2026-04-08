@@ -19,16 +19,16 @@ Handled by `scripts/verify_findings.py`. Run it against the merged Phase 3 agent
 
 **Step 4.0 — Read the merge script output (produced by "Merge Phase 3 Outputs" in SKILL.md)**
 
-The merge script writes `$TMPDIR/deep-review-phase4-input-{head_sha_short}.json` during the Merge Phase 3 Outputs step. Pass this file directly to `verify_findings.py`:
+The merge script writes `{tmpdir}/deep-review-phase4-input-{head_sha_short}.json` during the Merge Phase 3 Outputs step. Pass this file directly to `verify_findings.py`:
 
 ```bash
 Bash(
   description="Fact-checking findings against the codebase — verifying line numbers, confirming symbols exist, classifying new vs pre-existing",
   command="""python3 {plugin_root}/scripts/verify_findings.py \
-  "$TMPDIR/deep-review-phase4-input-{head_sha_short}.json" \
+  "{tmpdir}/deep-review-phase4-input-{head_sha_short}.json" \
   --base-branch {base_branch} \
-  --diff-file "$TMPDIR/deep-review-diff-{head_sha_short}.patch" \
-  > "$TMPDIR/deep-review-phase4-output-{head_sha_short}.json"
+  --diff-file "{tmpdir}/deep-review-diff-{head_sha_short}.patch" \
+  > "{tmpdir}/deep-review-phase4-output-{head_sha_short}.json"
 """)
 ```
 
@@ -183,15 +183,15 @@ Handled by `scripts/filter_findings.py`. Run it against the Phase 5 validated fi
 
 **Step 6.0 — Apply validator confidence adjustments, then filter**
 
-**Step 6.0a — Apply validations** using `apply_validations.py`. Collect validator outputs into a combined `[{id, confidence, justification}]` JSON array. **Field mapping:** validators return `finding_id` — rename to `id`. Write to `$TMPDIR/deep-review-validations-{head_sha_short}.json`, then run:
+**Step 6.0a — Apply validations** using `apply_validations.py`. Collect validator outputs into a combined `[{id, confidence, justification}]` JSON array. **Field mapping:** validators return `finding_id` — rename to `id`. Write to `{tmpdir}/deep-review-validations-{head_sha_short}.json`, then run:
 
 ```bash
 Bash(
   description="Applying validator confidence scores to findings",
   command="""python3 {plugin_root}/scripts/apply_validations.py \
-  "$TMPDIR/deep-review-phase4-output-{head_sha_short}.json" \
-  "$TMPDIR/deep-review-validations-{head_sha_short}.json" \
-  --output "$TMPDIR/deep-review-phase5-output-{head_sha_short}.json"
+  "{tmpdir}/deep-review-phase4-output-{head_sha_short}.json" \
+  "{tmpdir}/deep-review-validations-{head_sha_short}.json" \
+  --output "{tmpdir}/deep-review-phase5-output-{head_sha_short}.json"
 """)
 ```
 
@@ -203,9 +203,9 @@ The Phase 4 output file (`verify_findings.py` stdout redirected to disk) contain
 Bash(
   description="Filtering for high-confidence findings — applying thresholds, removing false positives, routing to report sections",
   command="""python3 {plugin_root}/scripts/filter_findings.py \
-  "$TMPDIR/deep-review-phase5-output-{head_sha_short}.json" \
+  "{tmpdir}/deep-review-phase5-output-{head_sha_short}.json" \
   --review-md {repo_root}/REVIEW.md \
-  --output "$TMPDIR/deep-review-phase6-output-{head_sha_short}.json"
+  --output "{tmpdir}/deep-review-phase6-output-{head_sha_short}.json"
 """)
 ```
 
@@ -353,19 +353,19 @@ After dispatch, announce: "Dispatched N agents for Phase 7." (N must equal the n
 
 ## Post-challenge finalization — apply_challenges.py
 
-Collect challenger outputs into a combined `[{id, score, justification}]` JSON array. **Field mapping:** challengers return `confidence_claim_is_correct` — rename to `score`, and add the `id` of the challenged finding. Write to `$TMPDIR/deep-review-challenges-{head_sha_short}.json`, then run:
+Collect challenger outputs into a combined `[{id, score, justification}]` JSON array. **Field mapping:** challengers return `confidence_claim_is_correct` — rename to `score`, and add the `id` of the challenged finding. Write to `{tmpdir}/deep-review-challenges-{head_sha_short}.json`, then run:
 
 ```bash
 Bash(
   description="Applying challenge scores — removing/downgrading challenged findings, deduplicating, ranking",
   command="""python3 {plugin_root}/scripts/apply_challenges.py \
-  "$TMPDIR/deep-review-phase6-output-{head_sha_short}.json" \
-  "$TMPDIR/deep-review-challenges-{head_sha_short}.json" \
-  --output "$TMPDIR/deep-review-delivery-{head_sha_short}.json"
+  "{tmpdir}/deep-review-phase6-output-{head_sha_short}.json" \
+  "{tmpdir}/deep-review-challenges-{head_sha_short}.json" \
+  --output "{tmpdir}/deep-review-delivery-{head_sha_short}.json"
 """)
 ```
 
-The script applies challenge thresholds, re-routes surfaced findings, re-runs cross-agent dedup, and ranks findings. Output is delivery-ready JSON at `$TMPDIR/deep-review-delivery-{head_sha_short}.json`.
+The script applies challenge thresholds, re-routes surfaced findings, re-runs cross-agent dedup, and ranks findings. Output is delivery-ready JSON at `{tmpdir}/deep-review-delivery-{head_sha_short}.json`.
 
 **Challenge threshold reference:**
 - **score < 25** → remove (non-security) or downgrade one severity level (security)
@@ -392,7 +392,7 @@ The script applies challenge thresholds, re-routes surfaced findings, re-runs cr
 }
 ```
 
-Pass `$TMPDIR/deep-review-delivery-{head_sha_short}.json` to Phase 8 report generation.
+Pass `{tmpdir}/deep-review-delivery-{head_sha_short}.json` to Phase 8 report generation.
 
 ---
 
@@ -441,7 +441,7 @@ Rate limit recovery is transparent to the user when under 60 seconds. Extended w
 When `merge_findings.py` (Merge Phase 3 Outputs) fails:
 
 1. **Check the exit code and read stderr.** The script prints structured error messages.
-2. **Fix the most common cause.** Missing NDJSON files or malformed agent text returns are the primary failure modes — verify that `$TMPDIR/deep-review-text-{agent}-{head_sha_short}.txt` files were written before calling the script.
+2. **Fix the most common cause.** Missing NDJSON files or malformed agent text returns are the primary failure modes — verify that `{tmpdir}/deep-review-text-{agent}-{head_sha_short}.txt` files were written before calling the script.
 3. **Retry once.** If the script fails again, fall back manually:
    - Collect each agent's text return and extract any JSON blocks inline.
    - Manually assemble the Phase 4 input envelope using the `python3 -c "import json; ..."` pattern.

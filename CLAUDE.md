@@ -42,7 +42,12 @@ SKILL.md derives `{plugin_root}` as two levels above the skill base directory. A
 ## Tests
 
 - pytest with `unittest.TestCase` style. Run: `python -m pytest tests/ -q`
-- 478 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
+- 484 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
+
+## Temp file convention
+
+- `{tmpdir}` in SKILL.md and references is a **resolved literal path** from `echo ${TMPDIR:-/tmp}` (Phase 1). Agents receive the resolved path in their dispatch prompt via `Findings file:`; they never use `$TMPDIR` in Bash commands. This avoids sandbox permission prompts on every write.
+- The PreToolUse hook accepts both `$TMPDIR` and literal temp-directory paths (`/tmp/`, `/private/tmp/`, `/var/folders/`) for resilience against agent behavioral drift.
 
 ## Writing pipeline JSON
 
