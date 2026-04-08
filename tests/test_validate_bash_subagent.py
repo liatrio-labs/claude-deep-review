@@ -217,6 +217,29 @@ class TestValidateBashCommand(unittest.TestCase):
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow \\u0027 in payload, got: {message}")
 
+    def test_unicode_escaped_apostrophe_in_full_finding(self):
+        r"""Full finding JSON with \u0027 should be allowed"""
+        payload = (
+            '{"id":"bug-1","dimension":"bug","severity":"high","confidence":85,'
+            '"file":"src/auth.py","line_start":42,"line_end":45,'
+            '"title":"Null check missing",'
+            r'"description":"The function doesn\u0027t validate input before use",'
+            '"evidence":"line 42","suggestion":"Add null check"}'
+        )
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": f"echo '{payload}' >> \".deep-review/deep-review-bug-detector-abc12345.ndjson\""},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow full finding with \\u0027, got: {message}")
+
+    def test_unicode_escaped_apostrophe_json_roundtrip(self):
+        r"""Verify \u0027 survives JSON parse round-trip"""
+        import json as json_mod
+        raw = r'{"description":"doesn\u0027t work"}'
+        parsed = json_mod.loads(raw)
+        self.assertEqual(parsed["description"], "doesn't work")
+
     # --- Forbidden commands ---
 
     def test_subagent_grep_blocked(self):
