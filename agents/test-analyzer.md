@@ -143,7 +143,7 @@ Don't rely solely on the diff and pre-loaded context. Use Grep to search for tes
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -162,7 +162,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 Real gap — the payment failure path in processPayment() has no test; a regression could go undetected.
 
 ```bash
-echo '{"id":"test-1","dimension":"test_coverage","severity":"high","criticality":9,"confidence":90,"file":"src/payments/processor.py","line_start":67,"line_end":82,"title":"Missing test for payment failure error path in processPayment","description":"processPayment() has an error path at line 74 that catches PaymentGatewayError and rolls back the transaction, but no test exercises this path.","evidence":"Lines 74-80: except PaymentGatewayError — no corresponding test in tests/payments/","suggestion":"Add test: mock gateway to raise PaymentGatewayError, assert transaction rolled back and error logged.","failure_scenario":"A regression removing the rollback on failure would go undetected until a failed payment left a partial transaction in the database.","claude_md_rule":null,"cross_file_refs":["tests/payments/test_processor.py"]}' >> ".deep-review/deep-review-test-analyzer-abc12345.ndjson"
+echo '{"id":"test-1","dimension":"test_coverage","severity":"high","criticality":9,"confidence":90,"file":"src/payments/processor.py","line_start":67,"line_end":82,"title":"Missing test for payment failure error path in processPayment","description":"processPayment() has an error path at line 74 that catches PaymentGatewayError and rolls back the transaction, but isn\u0027t covered by any test.","evidence":"Lines 74-80: except PaymentGatewayError — no corresponding test in tests/payments/","suggestion":"Add test: mock gateway to raise PaymentGatewayError, assert transaction rolled back and error logged.","failure_scenario":"A regression removing the rollback on failure would go undetected until a failed payment left a partial transaction in the database.","claude_md_rule":null,"cross_file_refs":["tests/payments/test_processor.py"]}' >> ".deep-review/deep-review-test-analyzer-abc12345.ndjson"
 ```
 
 [investigation of missing boundary test for pagination — covered by integration test]

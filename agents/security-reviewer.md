@@ -200,7 +200,7 @@ Don't rely solely on the diff and pre-loaded context. Use Read and Grep to trace
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -219,7 +219,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 Found real vulnerability — query constructed by string concatenation with unvalidated user input.
 
 ```bash
-echo '{"id":"security-1","dimension":"security","severity":"critical","confidence":92,"file":"src/api/users.py","line_start":87,"line_end":89,"title":"SQL injection in user search endpoint","description":"User-supplied search term is concatenated directly into SQL query without parameterization. An attacker can inject arbitrary SQL.","evidence":"query = \"SELECT * FROM users WHERE name = \'\" + search_term + \"\'\";","suggestion":"Use parameterized queries: cursor.execute(\"SELECT * FROM users WHERE name = %s\", (search_term,))","attack_vector":"1. Send search_term=\"\\'OR 1=1--\". 2. Query becomes SELECT * WHERE name = \\'\\' OR 1=1--\\'. 3. Returns all users.","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-security-reviewer-abc12345.ndjson"
+echo '{"id":"security-1","dimension":"security","severity":"critical","confidence":92,"file":"src/api/users.py","line_start":87,"line_end":89,"title":"SQL injection in user search endpoint","description":"User-supplied search term is concatenated directly into SQL query and doesn\u0027t use parameterized queries. An attacker can inject arbitrary SQL.","evidence":"query = \"SELECT * FROM users WHERE name = \'\" + search_term + \"\'\";","suggestion":"Use parameterized queries: cursor.execute(\"SELECT * FROM users WHERE name = %s\", (search_term,))","attack_vector":"1. Send search_term=\"\\'OR 1=1--\". 2. Query becomes SELECT * WHERE name = \\'\\' OR 1=1--\\'. 3. Returns all users.","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-security-reviewer-abc12345.ndjson"
 ```
 
 [investigation of missing CSRF token on settings page — no issue found]

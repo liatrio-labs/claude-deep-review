@@ -221,7 +221,7 @@ Don't rely solely on the diff and pre-loaded context. Use Read and Grep to exami
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -240,7 +240,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 I found a real issue — the auth context can be null on API key paths.
 
 ```bash
-echo '{"id":"bug-1","dimension":"bug","severity":"high","confidence":85,"file":"src/auth.py","line_start":42,"line_end":45,"title":"Auth context null on API key path","description":"When authenticating via API key, organization_context.member is None but line 42 dereferences it unconditionally.","evidence":"Line 42: member.role == Role.ADMIN","suggestion":"Add a None check before accessing member attributes.","hidden_errors":null,"claude_md_rule":null,"cross_file_refs":["src/middleware/auth.py"]}' >> ".deep-review/deep-review-bug-detector-abc12345.ndjson"
+echo '{"id":"bug-1","dimension":"bug","severity":"high","confidence":85,"file":"src/auth.py","line_start":42,"line_end":45,"title":"Auth context null on API key path","description":"When authenticating via API key, organization_context.member is None but line 42 doesn\u0027t check before dereferencing.","evidence":"Line 42: member.role == Role.ADMIN","suggestion":"Add a None check before accessing member attributes.","hidden_errors":null,"claude_md_rule":null,"cross_file_refs":["src/middleware/auth.py"]}' >> ".deep-review/deep-review-bug-detector-abc12345.ndjson"
 ```
 
 [investigation of off-by-one in pagination — no issue found]

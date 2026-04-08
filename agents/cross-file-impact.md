@@ -161,7 +161,7 @@ Don't rely solely on the diff and pre-loaded context — cross-file impact analy
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -180,7 +180,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 Found real impact — billing module caller at src/billing/invoice.py:103 still expects the old return type.
 
 ```bash
-echo '{"id":"cross-file-1","dimension":"cross_file_impact","severity":"high","confidence":88,"file":"src/users/repository.py","line_start":45,"line_end":47,"title":"getUserById return type change breaks billing caller","description":"getUserById now returns Optional[User] but billing/invoice.py:103 dereferences it without a None check, causing AttributeError when user not found.","evidence":"invoice.py:103: user.billing_address — no None guard","suggestion":"Add None check in invoice.py:103 before accessing user attributes.","affected_consumers":["src/billing/invoice.py"],"claude_md_rule":null,"cross_file_refs":["src/billing/invoice.py"]}' >> ".deep-review/deep-review-cross-file-impact-abc12345.ndjson"
+echo '{"id":"cross-file-1","dimension":"cross_file_impact","severity":"high","confidence":88,"file":"src/users/repository.py","line_start":45,"line_end":47,"title":"getUserById return type change breaks billing caller","description":"getUserById now returns Optional[User] but billing/invoice.py:103 doesn\u0027t check for None before dereferencing, causing AttributeError when user not found.","evidence":"invoice.py:103: user.billing_address — no None guard","suggestion":"Add None check in invoice.py:103 before accessing user attributes.","affected_consumers":["src/billing/invoice.py"],"claude_md_rule":null,"cross_file_refs":["src/billing/invoice.py"]}' >> ".deep-review/deep-review-cross-file-impact-abc12345.ndjson"
 ```
 
 [investigation of renamed config key DATABASE_URL — no issue found]

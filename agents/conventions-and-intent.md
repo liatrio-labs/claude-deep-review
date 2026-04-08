@@ -224,7 +224,7 @@ Don't rely solely on the diff and pre-loaded context. Use Read to load CLAUDE.md
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -243,7 +243,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 Real violation — CLAUDE.md requires structured logging with error_id but handler uses print().
 
 ```bash
-echo '{"id":"conv-1","dimension":"convention","severity":"medium","confidence":88,"file":"src/api/handlers.py","line_start":112,"line_end":114,"title":"Error handler uses print() instead of structured logger","description":"CLAUDE.md section 4 requires all error handling to use the structured logger with an error_id field. Line 113 uses print(str(e)) which bypasses monitoring integration.","evidence":"Line 113: print(f\"Error: {e}\")","suggestion":"Replace with: logger.error(\"handler_failed\", error_id=generate_id(), exc_info=True)","claude_md_rule":"All errors must be logged via logger.error() with an error_id (CLAUDE.md section 4)","spec_text":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-conventions-and-intent-abc12345.ndjson"
+echo '{"id":"conv-1","dimension":"convention","severity":"medium","confidence":88,"file":"src/api/handlers.py","line_start":112,"line_end":114,"title":"Error handler uses print() instead of structured logger","description":"CLAUDE.md section 4 requires all error handling to use the structured logger with an error_id field. Line 113 uses print(str(e)) and doesn\u0027t integrate with monitoring.","evidence":"Line 113: print(f\"Error: {e}\")","suggestion":"Replace with: logger.error(\"handler_failed\", error_id=generate_id(), exc_info=True)","claude_md_rule":"All errors must be logged via logger.error() with an error_id (CLAUDE.md section 4)","spec_text":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-conventions-and-intent-abc12345.ndjson"
 ```
 
 [investigation of function naming convention — follows project pattern correctly]

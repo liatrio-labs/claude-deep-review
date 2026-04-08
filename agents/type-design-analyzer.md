@@ -167,7 +167,7 @@ Don't rely solely on the diff and pre-loaded context. Prefer LSP to navigate typ
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -186,7 +186,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 Real issue — the settings dict is returned by reference, callers can mutate the internal state.
 
 ```bash
-echo '{"id":"type-1","dimension":"type_design","severity":"high","confidence":85,"file":"src/config/user_config.py","line_start":28,"line_end":31,"title":"UserConfig exposes mutable settings dict allowing external state mutation","description":"Encapsulation: 2/10, Expression: 5/10, Usefulness: 7/10, Enforcement: 2/10. get_settings() returns the internal dict by reference. Any caller can mutate UserConfig state without going through the validated setters, breaking invariants.","evidence":"Line 30: return self._settings  # returns reference, not copy","suggestion":"Return a copy: return dict(self._settings). Or use a frozen dataclass/NamedTuple to enforce immutability at the type level.","invalid_state_example":"config.get_settings()[\\'max_connections\\'] = -1 bypasses the >0 validation in set_max_connections().","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-type-design-analyzer-abc12345.ndjson"
+echo '{"id":"type-1","dimension":"type_design","severity":"high","confidence":85,"file":"src/config/user_config.py","line_start":28,"line_end":31,"title":"UserConfig exposes mutable settings dict allowing external state mutation","description":"Encapsulation: 2/10, Expression: 5/10, Usefulness: 7/10, Enforcement: 2/10. get_settings() returns the internal dict by reference. Any caller can mutate UserConfig state and doesn\u0027t go through the validated setters, breaking invariants.","evidence":"Line 30: return self._settings  # returns reference, not copy","suggestion":"Return a copy: return dict(self._settings). Or use a frozen dataclass/NamedTuple to enforce immutability at the type level.","invalid_state_example":"config.get_settings()[\\'max_connections\\'] = -1 bypasses the >0 validation in set_max_connections().","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-type-design-analyzer-abc12345.ndjson"
 ```
 
 [investigation of enum variant exhaustiveness — switch has default case covering new variants]

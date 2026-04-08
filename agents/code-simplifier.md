@@ -165,7 +165,7 @@ Don't rely solely on the diff and pre-loaded context. Use Read to load CLAUDE.md
   `echo '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-Each finding must be a complete, valid JSON object on a single line. Use the schema below. Use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, use ANSI-C quoting instead (`echo $'...'`) which allows `\'` escapes. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -184,7 +184,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 Real simplification — three-level nested ternary can be replaced with a dict lookup.
 
 ```bash
-echo '{"id":"simplify-1","dimension":"simplification","severity":"medium","confidence":82,"file":"src/ui/status.py","line_start":55,"line_end":57,"title":"Triple nested ternary in renderStatus is hard to parse","description":"Lines 55-57 use a three-level nested ternary to map status codes to labels. A dict lookup expresses the same mapping more clearly. Before: label = \\'Active\\' if s==1 else \\'Pending\\' if s==2 else \\'Closed\\'. After: STATUS_LABELS = {1: \\'Active\\', 2: \\'Pending\\', 3: \\'Closed\\'}; label = STATUS_LABELS.get(s, \\'Unknown\\')","evidence":"Lines 55-57: nested ternary expression","suggestion":"Replace nested ternary with STATUS_LABELS dict lookup as shown in description.","behavior_preserved":"Yes — dict.get() with default covers all cases the nested ternary handles.","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-code-simplifier-abc12345.ndjson"
+echo '{"id":"simplify-1","dimension":"simplification","severity":"medium","confidence":82,"file":"src/ui/status.py","line_start":55,"line_end":57,"title":"Triple nested ternary in renderStatus is hard to parse","description":"Lines 55-57 use a three-level nested ternary to map status codes to labels. A dict lookup doesn\u0027t nest and expresses the same mapping more clearly. Before: label = \\'Active\\' if s==1 else \\'Pending\\' if s==2 else \\'Closed\\'. After: STATUS_LABELS = {1: \\'Active\\', 2: \\'Pending\\', 3: \\'Closed\\'}; label = STATUS_LABELS.get(s, \\'Unknown\\')","evidence":"Lines 55-57: nested ternary expression","suggestion":"Replace nested ternary with STATUS_LABELS dict lookup as shown in description.","behavior_preserved":"Yes — dict.get() with default covers all cases the nested ternary handles.","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-code-simplifier-abc12345.ndjson"
 ```
 
 [investigation of repeated null checks — actually needed for different code paths]
