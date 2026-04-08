@@ -119,6 +119,26 @@ class TestValidateBashCommand(unittest.TestCase):
         self.assertIn("$TMPDIR is not allowed", message)
         self.assertIn("literal path", message)
 
+    def test_tmpdir_quoted_blocked(self):
+        """Quoted $TMPDIR is also blocked — quoting doesn't bypass enforcement"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "$TMPDIR/deep-review-bug-detector-abc.ndjson"'},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("$TMPDIR is not allowed", message)
+
+    def test_tmpdir_with_ansi_c_payload_blocked(self):
+        """ANSI-C quoted payload with $TMPDIR path is still blocked"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": r"""echo $'{"desc":"it\'s"}' >> $TMPDIR/deep-review-out.ndjson"""},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("$TMPDIR is not allowed", message)
+
     def test_tmpdir_in_payload_not_false_positive(self):
         """$TMPDIR inside single-quoted JSON payload must NOT be blocked.
         A finding about a $TMPDIR bug has the text in the payload, not the path."""
