@@ -2,25 +2,40 @@
 """
 PreToolUse hook: validate_bash_subagent
 
-Restricts Bash usage in subagents to the finding-emission echo-append pattern only:
-  echo ... >> /tmp/deep-review-*  (or /private/tmp/, /var/folders/)
+Restricts Bash usage in subagents to the finding-emission echo-append pattern:
+  echo '...' >> <output_dir>/deep-review-*
 
-Structural enforcement: $TMPDIR is BLOCKED with corrective guidance.
-Agents must use the literal resolved path from their dispatch prompt.
-This prevents sandbox permission prompts that occur with $TMPDIR.
+Security boundary — blocks arbitrary commands (grep, git, rm, etc.) while
+allowing agents to append findings to their NDJSON file.
 
 Reads hook input JSON from stdin. Checks:
 - agent_id: if missing/null (orchestrator), allow all commands
-- command: must match echo-append to literal temp-directory path
-- $TMPDIR usage: blocked with message redirecting to literal path
+- command: must match echo-append to a deep-review-* file
 
-Exit 0: command allowed
-Exit 2: command blocked (with stderr feedback)
+Emits JSON on stdout with hookSpecificOutput.permissionDecision ("allow"/"deny")
+per the Claude Code PreToolUse hook protocol. Always exits 0.
 """
 
 import json
 import re
 import sys
+
+# Match: echo '<payload>' >> <path>/deep-review-<filename>
+# Payload must be single-quoted or ANSI-C quoted (no double-quotes — expansion risk).
+# Path can be relative (.deep-review/...) or absolute (/path/to/...).
+# \Z blocks embedded newlines.
+ECHO_APPEND_RE = re.compile(
+    r"^\s*echo\s+"
+    r"(?:'[^']*'|\$'(?:[^'\\]|\\.)*')"  # single-quoted or ANSI-C quoted payload
+    r"\s+>>\s+"                           # append operator
+    r"(\"?[^\s\"]+\"?)"                   # capture path (with optional quotes)
+    r"\Z"
+)
+
+# Safe characters for file paths — no shell metacharacters
+SAFE_PATH_RE = re.compile(r"^[a-zA-Z0-9_./:~-]+$")
+
+FORBIDDEN_COMMANDS = ["grep", "cat", "git", "find"]
 
 
 def validate_bash_command(hook_input):
@@ -40,14 +55,8 @@ def validate_bash_command(hook_input):
     Returns:
         tuple: (allowed: bool, message: str)
     """
-    # Detect subagent: check agent_id first, fall back to agent_type.
-    # Both are absent for the main orchestrator session.
-    # Claude Code PreToolUse schema includes agent_id for subagents.
-    # agent_type fallback covers forward compatibility with schema changes.
-    # If neither key exists, we conservatively treat it as orchestrator (allow).
     agent_id = hook_input.get("agent_id") or hook_input.get("agent_type")
 
-    # Extract command from tool_input (Claude Code schema), with top-level fallback
     tool_input = hook_input.get("tool_input", {})
     if not isinstance(tool_input, dict):
         tool_input = {}
@@ -57,116 +66,74 @@ def validate_bash_command(hook_input):
     if not agent_id:
         return True, "Orchestrator allowed"
 
-    # Subagent: validate command is echo-append to literal temp path /deep-review-*
     if not command:
         return False, "Empty command not allowed for subagents"
 
-    # Reject forbidden commands (exact match on first token, not substring)
-    forbidden_commands = ["grep", "cat", "git", "find"]
-    tokens = command.split()
-    first_token = tokens[0] if tokens else ""
-    for forbidden in forbidden_commands:
+    # Reject forbidden commands (exact match on first token)
+    first_token = command.split()[0] if command.split() else ""
+    for forbidden in FORBIDDEN_COMMANDS:
         if forbidden == first_token:
             return False, f"Command '{forbidden}' not allowed in subagents"
 
-    # Structural enforcement: block $TMPDIR, require literal resolved paths.
-    #
-    # Agents receive the resolved literal path via "Findings file:" in their
-    # dispatch prompt, but default to $TMPDIR out of habit. The sandbox prompts
-    # for permission on $TMPDIR because it can't statically verify the target.
-    # Rather than hoping agents follow instructions (research shows ~60% drift),
-    # we structurally block $TMPDIR and redirect agents to the literal path.
-    #
-    # Order matters: regex runs FIRST so $TMPDIR inside a single-quoted JSON
-    # payload (e.g., a finding describing a $TMPDIR bug) doesn't false-positive.
-    # The $TMPDIR block only fires for commands that didn't match the valid pattern.
-    #
-    # Allowed payload quoting styles:
-    #   Single-quoted:  echo '...'   (no expansion — safest, use for most findings)
-    #   ANSI-C quoted:  echo $'...'  (allows \' escapes — use when description has apostrophes)
-    # Double-quoted payloads are NOT allowed because $() and `` are shell expansion vectors.
-    # Use \Z (not $) to reject embedded newlines.
+    # Validate echo-append pattern
+    m = ECHO_APPEND_RE.match(command)
+    if m:
+        raw_path = m.group(1).strip('"')
 
-    # Step 1: Validate echo-append to literal temp-directory path
-    pattern = (
-        r"^\s*echo\s+"
-        r"(?:"
-        r"'[^']*'"                    # single-quoted: no single quotes in payload
-        r"|"
-        r"\$'(?:[^'\\]|\\.)*'"       # ANSI-C quoted: allows backslash escapes
-        r")"
-        r"\s+>>\s+\"?"
-        r"/(?:tmp|private/tmp|var/folders)"   # literal temp-directory roots only
-        r"(?:/[a-zA-Z0-9_.:-]+)*"            # subdirectory components (strict charset is intentional security guardrail)
-        r"/deep-review-[a-zA-Z0-9_.:-]+\"?\Z"
-    )
+        if not SAFE_PATH_RE.match(raw_path):
+            return False, f"Path contains unsafe characters: {raw_path}"
 
-    if re.match(pattern, command):
-        # Reject path traversal in literal paths (.. could escape intended directory)
-        if ".." in command.split(">>", 1)[-1]:
+        if ".." in raw_path:
             return False, "Path traversal (..) not allowed in output path"
+
+        filename = raw_path.rsplit("/", 1)[-1] if "/" in raw_path else raw_path
+        if not filename.startswith("deep-review-"):
+            return False, "Filename must start with deep-review-"
+
         return True, "Valid echo-append pattern"
 
-    # Step 2: If not a valid pattern, check for $TMPDIR and block with guidance.
-    # This runs AFTER the regex so $TMPDIR inside a quoted payload doesn't
-    # false-positive (the regex would have matched and returned above).
-    if "$TMPDIR" in command and ">>" in command:
-        return False, (
-            "$TMPDIR is not allowed — use the literal path from "
-            "'Findings file:' in your prompt. The sandbox cannot verify "
-            "$TMPDIR targets. Replace $TMPDIR with the resolved path "
-            "(e.g., /tmp/ or /var/folders/...)."
-        )
-
-    # Command did not match — run structural checks to produce a helpful message.
-    # These checks are only reached for commands that failed the echo-append pattern,
-    # so they operate on the whole command string; false positives from JSON payload
-    # content are not possible here because a valid payload would have matched above.
-
+    # Command did not match echo-append — produce helpful diagnostics
     if "echo" not in command:
         return False, f"Command not allowed: {command}"
 
-    # Reject shell operators: pipes, semicolons, and other command chaining
-    forbidden_operators = ["|", ";", "&&", "||"]
-    for op in forbidden_operators:
+    # Reject shell operators
+    for op in ["|", ";", "&&", "||"]:
         if op in command:
             return False, "Shell operators not allowed in subagents"
 
-    # Reject single > (overwrite) unless it's part of >> (append)
-    cmd_without_append = command.replace(">>", "")
-    if ">" in cmd_without_append:
+    # Reject overwrite (>) unless it's part of append (>>)
+    if ">" in command.replace(">>", ""):
         return False, "echo command must use >> (append) not > (overwrite)"
 
-    if "/deep-review-" not in command:
-        return False, "echo command must append to <tmpdir>/deep-review-*"
+    if "/deep-review-" not in command and "deep-review-" not in command:
+        return False, "echo command must append to a deep-review-* file"
 
     return False, f"Command does not match valid echo-append pattern: {command}"
 
 
 def main():
-    """
-    Read hook input from stdin and validate bash command.
-
-    Returns:
-        0 if command is allowed
-        2 if command is blocked
-    """
+    """Read hook input from stdin and emit permissionDecision JSON on stdout."""
     try:
         hook_input = json.load(sys.stdin)
-    except json.JSONDecodeError as e:
-        sys.stderr.write(f"ERROR: Invalid JSON input: {e}\n")
-        sys.exit(2)
-    except Exception as e:
-        sys.stderr.write(f"ERROR: Failed to read hook input: {e}\n")
-        sys.exit(2)
+    except (json.JSONDecodeError, Exception) as e:
+        json.dump({
+            "hookSpecificOutput": {"permissionDecision": "deny"},
+            "systemMessage": f"Invalid hook input: {e}"
+        }, sys.stdout)
+        sys.exit(0)
 
     allowed, message = validate_bash_command(hook_input)
 
     if allowed:
-        sys.exit(0)
+        json.dump({
+            "hookSpecificOutput": {"permissionDecision": "allow"}
+        }, sys.stdout)
     else:
-        sys.stderr.write(f"BASH_COMMAND_BLOCKED: {message}\n")
-        sys.exit(2)
+        json.dump({
+            "hookSpecificOutput": {"permissionDecision": "deny"},
+            "systemMessage": message
+        }, sys.stdout)
+    sys.exit(0)
 
 
 if __name__ == "__main__":

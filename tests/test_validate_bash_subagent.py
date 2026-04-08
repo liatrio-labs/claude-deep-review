@@ -3,13 +3,16 @@ Tests for scripts/validate_bash_subagent.py
 
 Covers:
   - orchestrator (no agent_id) allowed all commands
-  - subagent valid echo-append to literal temp path deep-review-* allowed
-  - $TMPDIR structurally blocked with corrective guidance
-  - subagent grep/cat/git/find commands blocked
+  - subagent valid echo-append to .deep-review/ paths allowed
+  - subagent valid echo-append to absolute paths (env var override) allowed
+  - subagent grep/cat/git/find/ls commands blocked
   - subagent echo without append (>) blocked
-  - subagent echo to wrong path blocked
+  - subagent echo to wrong filename (no deep-review- prefix) blocked
   - empty command blocked for subagents
-  - whitespace handling and variations
+  - shell operator injection blocked (pipes, semicolons, &&, ||)
+  - path traversal (..) blocked
+  - payload quoting: single-quoted allowed, ANSI-C allowed, double-quoted blocked, unquoted blocked
+  - permissionDecision JSON output on stdout for allow and deny
   - tool_input.command schema (Claude Code hook input format)
   - agent_id / agent_type fallback detection
 """
@@ -28,6 +31,8 @@ from scripts.validate_bash_subagent import validate_bash_command
 
 class TestValidateBashCommand(unittest.TestCase):
     """Test validate_bash_command function"""
+
+    # --- Orchestrator detection ---
 
     def test_orchestrator_allowed_all_commands(self):
         """Orchestrator with no agent_id should allow any command"""
@@ -67,201 +72,80 @@ class TestValidateBashCommand(unittest.TestCase):
         """Top-level command field used as fallback when tool_input missing"""
         hook_input = {
             "agent_id": "bug-detector",
-            "command": "echo 'data' >> /tmp/deep-review-out",
+            "command": "echo 'data' >> .deep-review/deep-review-out.ndjson",
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
 
-    def test_subagent_valid_echo_append(self):
-        """Subagent valid echo-append pattern should be allowed"""
+    # --- Valid echo-append patterns (repo-local) ---
+
+    def test_repo_local_relative_path(self):
+        """echo-append to .deep-review/ relative path should be allowed"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo '[{\"bug\": true}]' >> /tmp/deep-review-findings"},
+            "tool_input": {"command": "echo '{\"bug\": true}' >> .deep-review/deep-review-bug-detector-abc12345.ndjson"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
 
-    def test_subagent_valid_echo_append_with_spaces(self):
-        """Subagent valid echo-append with extra spaces should be allowed"""
+    def test_repo_local_quoted_relative_path(self):
+        """echo-append to quoted .deep-review/ relative path should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> ".deep-review/deep-review-bug-detector-abc12345.ndjson"'},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed)
+
+    def test_absolute_path_allowed(self):
+        """echo-append to absolute path (env var override) should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "echo '{\"id\":\"bug-1\"}' >> /home/ci/output/deep-review-bug-detector-abc12345.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed)
+
+    def test_absolute_quoted_path_allowed(self):
+        """echo-append to quoted absolute path should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "/Users/lee/repo/.deep-review/deep-review-security-reviewer-def456.ndjson"'},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed)
+
+    def test_leading_whitespace_allowed(self):
+        """Leading whitespace should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "   echo 'data' >> .deep-review/deep-review-temp.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed)
+
+    def test_extra_spaces_around_append(self):
+        """Extra spaces around >> should be allowed"""
         hook_input = {
             "agent_id": "security-reviewer",
-            "tool_input": {"command": "echo 'test' >>  /tmp/deep-review-output.json"},
+            "tool_input": {"command": "echo 'test' >>  .deep-review/deep-review-output.ndjson"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
 
-    def test_subagent_valid_echo_append_with_leading_whitespace(self):
-        """Subagent valid echo-append with leading whitespace should be allowed"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "   echo 'data' >> /tmp/deep-review-temp"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed)
-
-    def test_subagent_valid_echo_append_complex_data(self):
-        """Subagent valid echo-append with complex JSON data should be allowed"""
+    def test_complex_json_payload(self):
+        """Complex JSON data in payload should be allowed"""
         hook_input = {
             "agent_id": "security-reviewer",
-            "tool_input": {"command": """echo '{"type":"security","severity":"high","line":42}' >> /tmp/deep-review-security"""},
+            "tool_input": {"command": "echo '{\"type\":\"security\",\"severity\":\"high\",\"line\":42}' >> .deep-review/deep-review-security-reviewer-abc12345.ndjson"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
 
-    def test_tmpdir_variable_blocked(self):
-        """$TMPDIR usage is structurally blocked — agents must use literal paths"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> $TMPDIR/deep-review-out"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("$TMPDIR is not allowed", message)
-        self.assertIn("literal path", message)
-
-    def test_tmpdir_quoted_blocked(self):
-        """Quoted $TMPDIR is also blocked — quoting doesn't bypass enforcement"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "$TMPDIR/deep-review-bug-detector-abc.ndjson"'},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("$TMPDIR is not allowed", message)
-
-    def test_tmpdir_with_ansi_c_payload_blocked(self):
-        """ANSI-C quoted payload with $TMPDIR path is still blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": r"""echo $'{"desc":"it\'s"}' >> $TMPDIR/deep-review-out.ndjson"""},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("$TMPDIR is not allowed", message)
-
-    def test_tmpdir_in_payload_not_false_positive(self):
-        """$TMPDIR inside single-quoted JSON payload must NOT be blocked.
-        A finding about a $TMPDIR bug has the text in the payload, not the path."""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command":
-                "echo '{\"description\":\"the code uses $TMPDIR without checking if set\"}' "
-                ">> /tmp/deep-review-bug-detector-abc.ndjson"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow $TMPDIR inside payload, got: {message}")
-
-    def test_subagent_grep_blocked(self):
-        """Subagent grep command should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "grep -r TODO ."},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("grep", message.lower())
-
-    def test_subagent_cat_blocked(self):
-        """Subagent cat command should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "cat file.txt"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("cat", message.lower())
-
-    def test_subagent_git_blocked(self):
-        """Subagent git command should be blocked"""
-        hook_input = {
-            "agent_id": "security-reviewer",
-            "tool_input": {"command": "git log --oneline"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("git", message.lower())
-
-    def test_subagent_find_blocked(self):
-        """Subagent find command should be blocked"""
-        hook_input = {
-            "agent_id": "type-reviewer",
-            "tool_input": {"command": "find . -name '*.py'"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("find", message.lower())
-
-    def test_subagent_echo_without_append_blocked(self):
-        """Subagent echo with > (overwrite) instead of >> (append) should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' > /tmp/deep-review-output"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn(">>", message)
-
-    def test_subagent_echo_to_wrong_path_blocked(self):
-        """Subagent echo to non-deep-review path should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> /tmp/other-file"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("/deep-review-", message)
-
-    def test_subagent_echo_to_home_blocked(self):
-        """Subagent echo to home directory should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> ~/.bashrc"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-
-    def test_subagent_empty_command_blocked(self):
-        """Subagent with empty command should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": ""},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("Empty", message)
-
-    def test_subagent_whitespace_only_command_blocked(self):
-        """Subagent with whitespace-only command should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "   "},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-        self.assertIn("Empty", message)
-
-    def test_subagent_command_with_pipe_blocked(self):
-        """Subagent with piped commands should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'test' | grep test >> /tmp/deep-review-output"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-
-    def test_subagent_echo_with_semicolon_blocked(self):
-        """Subagent with command chaining should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'test' >> /tmp/deep-review-out; rm -rf /"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-
-    def test_various_tmpdir_suffixes_allowed(self):
-        """Various valid literal path deep-review-* suffixes should be allowed"""
+    def test_various_filename_suffixes(self):
+        """Various valid deep-review-* suffixes should be allowed"""
         suffixes = [
-            "findings",
+            "findings.ndjson",
             "output.json",
             "temp_12345",
             "v1-results",
@@ -270,157 +154,20 @@ class TestValidateBashCommand(unittest.TestCase):
         for suffix in suffixes:
             hook_input = {
                 "agent_id": "test-agent",
-                "tool_input": {"command": f"echo 'data' >> /tmp/deep-review-{suffix}"},
+                "tool_input": {"command": f"echo 'data' >> .deep-review/deep-review-{suffix}"},
             }
             allowed, message = validate_bash_command(hook_input)
             self.assertTrue(
                 allowed, f"Should allow suffix '{suffix}', got: {message}"
             )
 
-    def test_missing_command_field(self):
-        """Missing command field should be treated as empty command"""
-        hook_input = {"agent_id": "bug-detector"}
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-
-    # --- Literal path tests (resolved $TMPDIR) ---
-
-    def test_literal_path_allowed(self):
-        """Literal absolute path (resolved TMPDIR) should be allowed"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo '{\"id\":\"bug-1\"}' >> /var/folders/dn/abc123/T/deep-review-bug-detector-abc12345.ndjson"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow literal path, got: {message}")
-
-    def test_literal_path_quoted_allowed(self):
-        """Double-quoted literal path should be allowed"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "/private/tmp/deep-review-security-reviewer-def456.ndjson"'},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow quoted literal path, got: {message}")
-
-    def test_literal_path_tmp_allowed(self):
-        """Simple /tmp literal path should be allowed"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> /tmp/deep-review-test-analyzer-abc.ndjson"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow /tmp literal path, got: {message}")
-
-    def test_literal_path_traversal_blocked(self):
-        """Literal path with traversal should be blocked by post-match check"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> /var/folders/../etc/deep-review-out.ndjson"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        # Dots are valid regex chars; traversal is caught by post-match ".." check
-        self.assertFalse(allowed)
-
-    def test_literal_path_dangerous_directory_blocked(self):
-        """Literal path to non-temp directory should be blocked"""
-        for path in ["/etc/deep-review-evil", "/bin/deep-review-evil",
-                     "/usr/local/bin/deep-review-evil", "/home/user/deep-review-evil"]:
-            hook_input = {
-                "agent_id": "bug-detector",
-                "tool_input": {"command": f"echo 'data' >> {path}"},
-            }
-            allowed, message = validate_bash_command(hook_input)
-            self.assertFalse(allowed, f"Should block write to {path}, got: {message}")
-
-    def test_literal_path_filename_traversal_blocked(self):
-        """deep-review-.. as filename should be blocked by post-match check"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> /tmp/deep-review-.."},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed)
-
-    # --- Adversarial pattern tests ---
-
-    def test_double_quoted_literal_path_allowed(self):
-        """Double-quoted literal path should be allowed"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "/tmp/deep-review-bug-detector-abc.ndjson"'},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow double-quoted literal path, got: {message}")
-
-    def test_ampersand_in_json_payload_allowed(self):
-        """&& inside single-quoted JSON payload should be allowed (not a shell operator)"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo '{\"description\":\"a && b\"}' >> \"/tmp/deep-review-out.ndjson\""},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow && inside JSON payload, got: {message}")
-
-    def test_greater_than_in_json_payload_allowed(self):
-        """> inside single-quoted JSON payload should be allowed (not a redirect)"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo '{\"description\":\"x > 0\"}' >> \"/tmp/deep-review-out.ndjson\""},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow > inside JSON payload, got: {message}")
-
-    def test_subshell_injection_blocked(self):
-        """Subshell injection via $() should be blocked (payload must be single-quoted)"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo $(rm -rf /) >> /tmp/deep-review-out.ndjson"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block subshell injection")
-
-    def test_backtick_injection_blocked(self):
-        """Backtick injection should be blocked (payload must be single-quoted)"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo `whoami` >> /tmp/deep-review-out.ndjson"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block backtick injection")
-
-    def test_newline_injection_blocked(self):
-        """Embedded newline in command should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> /tmp/deep-review-out.ndjson\nrm -rf /"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block command with embedded newline")
-
-    def test_double_quoted_payload_blocked(self):
-        """Double-quoted payload allows subshell expansion — must be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo "$(whoami)" >> /tmp/deep-review-out.ndjson'},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block double-quoted payload (allows $() expansion)")
-
-    def test_double_quoted_simple_blocked(self):
-        """Even simple double-quoted payloads are blocked (expansion risk)"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo "simple data" >> /tmp/deep-review-out.ndjson'},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block all double-quoted payloads")
+    # --- Payload quoting ---
 
     def test_ansi_c_quoted_payload_allowed(self):
-        """ANSI-C quoting ($'...') is allowed — handles apostrophes safely"""
+        """ANSI-C quoting is allowed — handles apostrophes safely"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": r"""echo $'{"id":"bug-1","description":"the function\'s return value"}' >> /tmp/deep-review-out.ndjson"""},
+            "tool_input": {"command": r"""echo $'{"id":"bug-1","description":"the function\'s return value"}' >> .deep-review/deep-review-out.ndjson"""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow ANSI-C quoted payload, got: {message}")
@@ -429,120 +176,254 @@ class TestValidateBashCommand(unittest.TestCase):
         """ANSI-C quoting with various backslash escapes"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": r"""echo $'{"desc":"line1\\nline2","note":"it\'s fine"}' >> /tmp/deep-review-out.ndjson"""},
+            "tool_input": {"command": r"""echo $'{"desc":"line1\\nline2","note":"it\'s fine"}' >> .deep-review/deep-review-out.ndjson"""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow ANSI-C escapes, got: {message}")
+
+    def test_double_quoted_payload_blocked(self):
+        """Double-quoted payload allows subshell expansion — must be blocked"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": 'echo "$(whoami)" >> .deep-review/deep-review-out.ndjson'},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed, "Should block double-quoted payload")
+
+    def test_double_quoted_simple_blocked(self):
+        """Even simple double-quoted payloads are blocked (expansion risk)"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": 'echo "simple data" >> .deep-review/deep-review-out.ndjson'},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed, "Should block all double-quoted payloads")
 
     def test_unquoted_payload_blocked(self):
         """Unquoted payload allows word splitting and globbing — must be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo data >> /tmp/deep-review-out.ndjson"},
+            "tool_input": {"command": "echo data >> .deep-review/deep-review-out.ndjson"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block unquoted payload")
 
     def test_unicode_escaped_apostrophe_in_payload_allowed(self):
-        r"""Payload with \u0027 (escaped apostrophe) should be allowed — valid JSON in single quotes"""
+        r"""Payload with \u0027 should be allowed — valid JSON in single quotes"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": r"""echo '{"description":"The context can\u0027t be null"}' >> /tmp/deep-review-out.ndjson"""},
+            "tool_input": {"command": r"""echo '{"description":"The context can\u0027t be null"}' >> .deep-review/deep-review-out.ndjson"""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow \\u0027 in payload, got: {message}")
 
+    # --- Forbidden commands ---
+
+    def test_subagent_grep_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "grep -r TODO ."}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("grep", message.lower())
+
+    def test_subagent_cat_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "cat file.txt"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("cat", message.lower())
+
+    def test_subagent_git_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "git log --oneline"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("git", message.lower())
+
+    def test_subagent_find_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "find . -name '*.py'"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("find", message.lower())
+
     def test_ls_command_blocked(self):
-        """ls command should be blocked for subagents"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "ls -la /tmp"},
-        }
+        hook_input = {"agent_id": "x", "tool_input": {"command": "ls -la .deep-review"}}
         allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block ls command")
+        self.assertFalse(allowed)
 
-    def test_and_and_after_path_blocked(self):
-        """&& after valid path should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out && rm -rf /"},
-        }
-        allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block && after path")
+    # --- Redirect / path validation ---
 
-    def test_and_and_no_space_after_path_blocked(self):
-        """&& without space after valid path should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out.ndjson&&rm -rf /"},
-        }
+    def test_echo_without_append_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'data' > .deep-review/deep-review-output.ndjson"}}
         allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block && without space after path")
+        self.assertFalse(allowed)
+        self.assertIn(">>", message)
 
-    def test_or_or_after_path_blocked(self):
-        """|| after valid path should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out || echo pwned"},
-        }
+    def test_echo_to_wrong_filename_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'data' >> .deep-review/other-file.ndjson"}}
         allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block || after path")
+        self.assertFalse(allowed)
+        self.assertIn("deep-review-", message)
 
-    def test_heredoc_blocked(self):
-        """Heredoc should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out <<< 'injection'"},
-        }
+    def test_echo_to_home_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'data' >> ~/.bashrc"}}
         allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block heredoc")
+        self.assertFalse(allowed)
 
     def test_path_traversal_blocked(self):
-        """Path traversal via ../ should be blocked"""
-        hook_input = {
-            "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-../../etc/passwd"},
-        }
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'x' >> .deep-review/../etc/deep-review-evil.ndjson"}}
         allowed, message = validate_bash_command(hook_input)
-        self.assertFalse(allowed, "Should block path traversal")
+        self.assertFalse(allowed)
+        self.assertIn("..", message)
+
+    def test_filename_traversal_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'data' >> .deep-review/deep-review-.."}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    # --- Shell injection ---
+
+    def test_pipe_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'test' | grep test >> .deep-review/deep-review-output.ndjson"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_semicolon_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'test' >> .deep-review/deep-review-out.ndjson; rm -rf /"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_and_and_after_path_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'x' >> .deep-review/deep-review-out.ndjson && rm -rf /"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_or_or_after_path_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'x' >> .deep-review/deep-review-out.ndjson || echo pwned"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_subshell_injection_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo $(rm -rf /) >> .deep-review/deep-review-out.ndjson"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_backtick_injection_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo `whoami` >> .deep-review/deep-review-out.ndjson"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_newline_injection_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'data' >> .deep-review/deep-review-out.ndjson\nrm -rf /"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_heredoc_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'x' >> .deep-review/deep-review-out.ndjson <<< 'injection'"}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_ampersand_in_json_payload_allowed(self):
+        """&& inside single-quoted JSON payload should be allowed"""
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo '{\"description\":\"a && b\"}' >> \".deep-review/deep-review-out.ndjson\""}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow && inside JSON payload, got: {message}")
+
+    def test_greater_than_in_json_payload_allowed(self):
+        """> inside single-quoted JSON payload should be allowed"""
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo '{\"description\":\"x > 0\"}' >> \".deep-review/deep-review-out.ndjson\""}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow > inside JSON payload, got: {message}")
+
+    # --- Edge cases ---
+
+    def test_empty_command_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": ""}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("Empty", message)
+
+    def test_whitespace_only_command_blocked(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "   "}}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("Empty", message)
+
+    def test_missing_command_field(self):
+        hook_input = {"agent_id": "x"}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+
+    def test_non_dict_tool_input(self):
+        hook_input = {"agent_id": "x", "tool_input": "not a dict"}
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
 
 
-class TestValidateBashHookIntegration(unittest.TestCase):
-    """Test the full hook integration with stdin/stdout/stderr"""
+class TestPermissionDecisionOutput(unittest.TestCase):
+    """Test that main() emits correct permissionDecision JSON on stdout"""
 
     @classmethod
     def setUpClass(cls):
         from scripts.validate_bash_subagent import main
         cls._main = staticmethod(main)
 
-    def test_orchestrator_allowed_via_stdin(self):
-        """Test orchestrator allowed via stdin input"""
-        hook_input = {"agent_id": None, "tool_input": {"command": "grep -r secret ."}}
+    def _run_hook(self, hook_input):
+        stdout = StringIO()
+        stderr = StringIO()
+        exit_code = None
         with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-            with patch("sys.stderr", new_callable=StringIO):
-                with self.assertRaises(SystemExit) as context:
-                    self._main()
-                self.assertEqual(context.exception.code, 0)
+            with patch("sys.stdout", stdout):
+                with patch("sys.stderr", stderr):
+                    try:
+                        self._main()
+                    except SystemExit as e:
+                        exit_code = e.code
+        return exit_code, stdout.getvalue(), stderr.getvalue()
 
-    def test_subagent_blocked_via_stdin(self):
-        """Test subagent blocked via stdin input"""
-        hook_input = {"agent_id": "bug-detector", "tool_input": {"command": "grep -r TODO ."}}
-        with patch("sys.stdin", StringIO(json.dumps(hook_input))):
-            with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                with self.assertRaises(SystemExit) as context:
-                    self._main()
-                self.assertEqual(context.exception.code, 2)
-                self.assertIn("BASH_COMMAND_BLOCKED", mock_stderr.getvalue())
+    def test_allow_emits_permission_decision(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "echo 'data' >> .deep-review/deep-review-out.ndjson"}}
+        exit_code, stdout, stderr = self._run_hook(hook_input)
+        self.assertEqual(exit_code, 0)
+        result = json.loads(stdout)
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "allow")
 
-    def test_invalid_json_input(self):
-        """Test invalid JSON input"""
-        invalid_json = "{invalid json"
-        with patch("sys.stdin", StringIO(invalid_json)):
-            with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                with self.assertRaises(SystemExit) as context:
-                    self._main()
-                self.assertEqual(context.exception.code, 2)
-                self.assertIn("Invalid JSON", mock_stderr.getvalue())
+    def test_deny_emits_permission_decision(self):
+        hook_input = {"agent_id": "x", "tool_input": {"command": "grep -r TODO ."}}
+        exit_code, stdout, stderr = self._run_hook(hook_input)
+        self.assertEqual(exit_code, 0)
+        result = json.loads(stdout)
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertIn("systemMessage", result)
+
+    def test_orchestrator_emits_allow(self):
+        hook_input = {"agent_id": None, "tool_input": {"command": "anything"}}
+        exit_code, stdout, stderr = self._run_hook(hook_input)
+        self.assertEqual(exit_code, 0)
+        result = json.loads(stdout)
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "allow")
+
+    def test_invalid_json_emits_deny(self):
+        stdout = StringIO()
+        stderr = StringIO()
+        exit_code = None
+        with patch("sys.stdin", StringIO("{invalid json")):
+            with patch("sys.stdout", stdout):
+                with patch("sys.stderr", stderr):
+                    try:
+                        self._main()
+                    except SystemExit as e:
+                        exit_code = e.code
+        self.assertEqual(exit_code, 0)
+        result = json.loads(stdout.getvalue())
+        self.assertEqual(result["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_all_exits_are_zero(self):
+        cases = [
+            {"agent_id": None, "tool_input": {"command": "anything"}},
+            {"agent_id": "x", "tool_input": {"command": "echo 'y' >> .deep-review/deep-review-z.ndjson"}},
+            {"agent_id": "x", "tool_input": {"command": "rm -rf /"}},
+        ]
+        for hook_input in cases:
+            exit_code, _, _ = self._run_hook(hook_input)
+            self.assertEqual(exit_code, 0, f"Expected exit 0 for {hook_input}")
 
 
 if __name__ == "__main__":
