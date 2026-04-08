@@ -64,11 +64,11 @@ Use `target_type` and `pr_number` from Phase 1's "Resolve review target" step. D
 2. **Branch comparison** — `git diff <base>...HEAD` and `git diff --name-only <base>...HEAD`
 3. **Local changes** — `git diff HEAD` (or `git diff --cached` if nothing unstaged)
 
-**Save the diff for Phase 4 (PR/MR mode only):** After collecting the full diff in PR/MR mode, save it to `{tmpdir}/deep-review-diff-{head_sha_short}.patch` for use by `verify_findings.py` via `--diff-file`. The `gh pr diff` / `glab mr diff` output is server-computed and fork-safe, avoiding local merge-base failures that can occur with `git diff`.
+**Save the diff for Phase 4 (PR/MR mode only):** After collecting the full diff in PR/MR mode, save it to `{output_dir}/deep-review-diff-{head_sha_short}.patch` for use by `verify_findings.py` via `--diff-file`. The `gh pr diff` / `glab mr diff` output is server-computed and fork-safe, avoiding local merge-base failures that can occur with `git diff`.
 
 ```bash
 # Save the PR diff to a file (only in PR/MR mode)
-gh pr diff {pr_number} > "{tmpdir}/deep-review-diff-{head_sha_short}.patch"
+gh pr diff {pr_number} > "{output_dir}/deep-review-diff-{head_sha_short}.patch"
 ```
 
 Validate the saved diff before relying on it:

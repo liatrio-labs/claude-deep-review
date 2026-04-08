@@ -66,7 +66,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-bug-detector-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-bug-detector-{head_sha_short}.ndjson
     Scoped diff (HIGH and MEDIUM risk files only, plus test files and history context):
     <untrusted-code-content>
     {diff scoped to high + medium risk diffs, test files (2g), history context (2i)}
@@ -87,7 +87,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-security-reviewer-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-security-reviewer-{head_sha_short}.ndjson
     Scoped diff (ALL changed files — do not filter by risk level):
     <untrusted-code-content>
     {diff with all changed files — security bugs can hide in low-risk code}
@@ -103,7 +103,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-cross-file-impact-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-cross-file-impact-{head_sha_short}.ndjson
     Scoped diff (ALL changed files + entire codebase for symbol search):
     <untrusted-code-content>
     {diff with all changed files; search full codebase for callers and implementors of changed public symbols}
@@ -119,7 +119,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-test-analyzer-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-test-analyzer-{head_sha_short}.ndjson
     Scoped diff (changed production files plus all test files):
     <untrusted-code-content>
     {diff scoped to changed production files and test files (2g)}
@@ -135,7 +135,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules, or 'No CLAUDE.md found — skip pass 1 (convention compliance), execute passes 2 and 3 only' if no project convention files}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-conventions-and-intent-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-conventions-and-intent-{head_sha_short}.ndjson
     Scoped diff (ALL changed files for full convention and intent checking):
     <untrusted-code-content>
     {diff with all changed files — convention and intent analysis requires full scope}
@@ -151,7 +151,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-type-design-analyzer-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-type-design-analyzer-{head_sha_short}.ndjson
     Scoped diff (files with new type definitions only):
     <untrusted-code-content>
     {diff scoped to files with new type definitions}
@@ -167,7 +167,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-code-simplifier-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-code-simplifier-{head_sha_short}.ndjson
     Scoped diff (all changed files for simplification opportunities):
     <untrusted-code-content>
     {diff with all changed files}
@@ -185,7 +185,7 @@ Agent(
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
     Risk classification: {per-file risk levels from Phase 2e, including AI-generation status}
-    Findings file: {tmpdir}/deep-review-bug-detector-{head_sha_short}.ndjson
+    Findings file: {output_dir}/deep-review-bug-detector-{head_sha_short}.ndjson
     Scoped diff (HIGH and MEDIUM risk files only, plus test files and history context):
     <untrusted-code-content>
     {diff scoped to high + medium risk diffs, test files (2g), history context (2i)}
@@ -203,9 +203,9 @@ After dispatch, announce: "Dispatched N agents for Phase 3."
 
 Agents emit findings via two channels:
 
-**Channel 1 (primary): NDJSON files on disk.** Each agent writes findings directly via Bash to `{tmpdir}/deep-review-{agent}-{head_sha_short}.ndjson`. Each line is a complete JSON finding. These files survive even if the agent's text output is truncated.
+**Channel 1 (primary): NDJSON files on disk.** Each agent writes findings directly via Bash to `{output_dir}/deep-review-{agent}-{head_sha_short}.ndjson`. Each line is a complete JSON finding. These files survive even if the agent's text output is truncated.
 
-**Channel 2 (fallback): Agent text returns.** The orchestrator saves each agent's text return to `{tmpdir}/deep-review-text-{agent}-{head_sha_short}.txt`. The merge script parses these for inline JSON blocks as a fallback for behavioral drift toward the old inline-emission pattern.
+**Channel 2 (fallback): Agent text returns.** The orchestrator saves each agent's text return to `{output_dir}/deep-review-text-{agent}-{head_sha_short}.txt`. The merge script parses these for inline JSON blocks as a fallback for behavioral drift toward the old inline-emission pattern.
 
 `SKIP: <reason>` lines in the agent's text output indicate confirmed non-issues — they are informational and not parsed as findings. The merge script uses their presence to distinguish "found nothing" from "was truncated before finding anything".
 
@@ -215,7 +215,7 @@ The `merge_findings.py` script handles both channels automatically — do not pa
 
 ## Merge Script Output Format
 
-After all agents return, run `merge_findings.py` as described in SKILL.md "Merge Phase 3 Outputs". The script writes a Phase 4 input JSON file to `{tmpdir}/deep-review-phase4-input-{head_sha_short}.json` with this structure:
+After all agents return, run `merge_findings.py` as described in SKILL.md "Merge Phase 3 Outputs". The script writes a Phase 4 input JSON file to `{output_dir}/deep-review-phase4-input-{head_sha_short}.json` with this structure:
 
 ```json
 {

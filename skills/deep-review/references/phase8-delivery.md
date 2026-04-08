@@ -8,7 +8,7 @@ Full UX orchestration flow for Phase 8: report delivery, PR comment selection, t
 
 > **Generate the report internally.** You may output a brief summary to chat, but the full report is delivered per the method(s) selected in Phase 1.
 
-**Read the delivery-ready findings** from `{tmpdir}/deep-review-delivery-{head_sha_short}.json` (output of `apply_challenges.py`). This file contains the final ranked, deduped, capped findings with all challenge metadata applied. Do not reconstruct findings from memory — use this file as the source of truth for the report.
+**Read the delivery-ready findings** from `{output_dir}/deep-review-delivery-{head_sha_short}.json` (output of `apply_challenges.py`). This file contains the final ranked, deduped, capped findings with all challenge metadata applied. Do not reconstruct findings from memory — use this file as the source of truth for the report.
 
 Read `references/report-format.md` for the full template and PR comment format.
 
@@ -85,9 +85,9 @@ findings = {
 }
 with open(sys.argv[1], 'w') as f:
     json.dump(findings, f, ensure_ascii=False, indent=2)
-" "{tmpdir}/deep-review-post-review-input-{head_sha_short}.json"
+" "{output_dir}/deep-review-post-review-input-{head_sha_short}.json"
 
-python3 {plugin_root}/scripts/post_review.py "{tmpdir}/deep-review-post-review-input-{head_sha_short}.json"
+python3 {plugin_root}/scripts/post_review.py "{output_dir}/deep-review-post-review-input-{head_sha_short}.json"
 """)
 ```
 
