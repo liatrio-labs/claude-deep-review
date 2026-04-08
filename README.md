@@ -26,7 +26,7 @@ After agents report findings, a six-script deterministic pipeline filters false 
 2. **`verify_findings.py`** — git blame classification (new vs surfaced), factual verification against actual code, diff-line validation
 3. **`apply_validations.py`** — applies independent validator confidence assessments
 4. **`filter_findings.py`** — confidence/severity thresholds (default 70, security 60), injection filtering, cross-agent dedup, consensus detection, routing (main report vs improvement suggestions)
-5. **`apply_challenges.py`** — applies blind challenge results, severity downgrades, surfaced re-routing, final dedup, max-findings cap, ranking
+5. **`apply_challenges.py`** — applies blind challenge results, severity downgrades, surfaced re-routing, final dedup, ranking
 6. **`post_review.py`** — delivers findings as PR/MR comments, markdown, or chat
 
 Between scripts, findings live on disk as JSON — zero LLM JSON reconstruction in the pipeline.
@@ -94,7 +94,7 @@ The review runs through 8 phases:
 4. **Classify & Verify** — `merge_findings.py` collects agent output, then `verify_findings.py` runs git blame classification, factual verification, and diff-line validation
 5. **Validate** — independent Sonnet validators assess each finding's confidence with codebase context. `apply_validations.py` applies their adjustments
 6. **Filter & Reconcile** — `filter_findings.py` applies thresholds, injection filtering, cross-agent dedup, consensus detection, and routes findings to main report vs improvement suggestions
-7. **Blind Challenge** — fresh agents attempt to disprove each finding without seeing original reasoning. `apply_challenges.py` applies challenge results, severity downgrades, surfaced re-routing, final dedup, cap, and ranking
+7. **Blind Challenge** — fresh agents attempt to disprove each finding without seeing original reasoning. `apply_challenges.py` applies challenge results, severity downgrades, surfaced re-routing, final dedup, and ranking
 8. **Report & Deliver** — generates report, delivers via PR/MR comments, markdown, chat, or task board. `post_review.py` handles comment posting
 
 ## REVIEW.md configuration
@@ -119,10 +119,6 @@ Deep Review will offer to scaffold a `REVIEW.md` when it doesn't find one. The f
 ## Confidence Threshold
 # Default: 70. Security uses minimum 60 regardless of this setting.
 70
-
-## Max Findings
-# Cap findings in high-debt codebases. Default: no limit.
-15
 ```
 
 See [references/review-md-spec.md](skills/deep-review/references/review-md-spec.md) for the full specification including hierarchy documentation.
@@ -150,7 +146,7 @@ Every architectural decision is grounded in published research:
 | PreToolUse hook enforcement | Structural enforcement > instruction-level guidance; Claude Code hooks provide hard behavioral constraints on subagents |
 | Suggest-not-modify config | Google SRE Workbook: tools should suggest config changes through reviewable mechanisms, not modify automatically |
 | REVIEW.md hierarchy | Nearest-only with explicit inheritance (Ruff, Biome v2) after ESLint's painful cascading lessons |
-| Max findings cap | Qodo defaults to 3 findings per review; configurable cap prevents noise in high-debt repos |
+| No arbitrary cap | Pipeline precision means all surviving findings are real — caps mask pipeline quality issues |
 
 ## Project structure
 
@@ -176,14 +172,14 @@ claude-deep-review/
 │   ├── verify_findings.py                #   Phase 4: blame classification, factual verification
 │   ├── apply_validations.py              #   Phase 5→6: apply validator confidence adjustments
 │   ├── filter_findings.py                #   Phase 6: thresholds, dedup, routing
-│   ├── apply_challenges.py               #   Phase 7→8: challenge results, cap, rank
+│   ├── apply_challenges.py               #   Phase 7→8: challenge results, dedup, rank
 │   ├── post_review.py                    #   Phase 8: PR/MR comment posting
 │   └── validate_bash_subagent.py         #   Hook: Bash command pattern validation
-├── tests/                                # 484 pytest tests
+├── tests/                                # 478 pytest tests
 ├── skills/
 │   ├── deep-review/
 │   │   ├── SKILL.md                      # Main orchestration (8 phases)
-│   │   └── references/                   # 10 phase-specific reference files
+│   │   └── references/                   # 11 phase-specific reference files
 │   └── build-review-md/                  # Companion skill: REVIEW.md configuration wizard
 ├── docs/
 │   └── research/                         # 24 research artifacts informing design

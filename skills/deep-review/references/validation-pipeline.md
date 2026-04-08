@@ -9,7 +9,7 @@ After all agents return, process their findings through the validation pipeline 
 - **Phase 4** — Step 4.0 (read merge script output), 4a (blame classification), 4b (factual verification), 4c (batch for validation)
 - **Phase 5** — Validator dispatch, confidence rubric, failure protocol
 - **Phase 6** — Step 6.0a (apply_validations.py), 6.0b (filter_findings.py), 6a (threshold filter), 6b (injection filter), 6c (disagreement detection), 6d (tag findings)
-- **Phase 7** — Blind challenge supplementary detail, post-challenge finalization (apply_challenges.py: thresholds, dedup, cap, rank), incremental diffing
+- **Phase 7** — Blind challenge supplementary detail, post-challenge finalization (apply_challenges.py: thresholds, dedup, rank), incremental diffing
 
 ---
 

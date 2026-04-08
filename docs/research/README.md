@@ -52,7 +52,7 @@ Key design decisions and which research artifacts support them:
 | REVIEW.md hierarchy mirroring CLAUDE.md | #09 | Nearest-only with explicit extends; settings override, rules accumulate |
 | Suggest-not-modify for config changes | #09 | Google SRE: tools should suggest through reviewable mechanisms |
 | Self-contained agent definitions (not skill delegation) | #10 | Anthropic's own plugins are self-contained; system prompt instructions outperform by 30%+ |
-| Max findings cap | #08 | Qodo defaults to 3 findings; configurable cap prevents noise in high-debt repos |
+| No arbitrary findings cap | #08 | Qodo defaults to 3 findings; we removed caps — pipeline precision means all survivors are real |
 | GitHub + GitLab VCS abstraction | #01 | Production tools support multiple platforms; auto-detection from git remote |
 | Incremental review with report diffing | #11 | Infer's introduced/fixed/preexisting classification; CodeRabbit's hidden PR comment state persistence |
 | Model routing: Sonnet default, Opus for security | #12 | SWE-bench gap compressed to 1.2 points; Anthropic's own plugin is all-Sonnet; complementary vulnerability-class profiles justify multi-model security |

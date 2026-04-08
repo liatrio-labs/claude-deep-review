@@ -58,11 +58,6 @@ medium
 <!-- simplification: 80 -->
 75
 
-## Max Findings
-<!-- Maximum number of findings to include in the report. Default: no limit -->
-<!-- When the cap is hit, highest-severity findings are kept and a note indicates how many were suppressed. -->
-15
-
 ## Model Tier
 <!-- Default review mode. When set, skips the mode selection prompt. -->
 <!-- Options: optimized (Sonnet default, Opus for security) or frontier (all Opus) -->
