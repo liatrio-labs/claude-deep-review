@@ -42,12 +42,12 @@ SKILL.md derives `{plugin_root}` as two levels above the skill base directory. A
 ## Tests
 
 - pytest with `unittest.TestCase` style. Run: `python -m pytest tests/ -q`
-- 488 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
+- 483 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
 
-## Temp file convention
+## Output directory convention
 
-- `{tmpdir}` in SKILL.md and references is a **resolved literal path** from `echo ${TMPDIR:-/tmp}` (Phase 1). Agents receive the resolved path in their dispatch prompt via `Findings file:`; they never use `$TMPDIR` in Bash commands. This avoids sandbox permission prompts on every write.
-- The PreToolUse hook **structurally blocks `$TMPDIR`** and only accepts literal temp-directory paths (`/tmp/`, `/private/tmp/`, `/var/folders/`). When an agent uses `$TMPDIR`, the hook returns corrective guidance redirecting it to the literal path from its prompt. This is structural enforcement — research shows ~60% drift rate with instruction-only approaches.
+- `{output_dir}` in SKILL.md and references defaults to `.deep-review/` (repo-local, gitignored). Override with `$DEEP_REVIEW_OUTPUT_DIR` for CI or custom environments.
+- The PreToolUse hook validates that subagent Bash commands match the echo-append pattern to `deep-review-*` files and emits `permissionDecision` JSON on stdout per the Claude Code hook protocol.
 
 ## Writing pipeline JSON
 
