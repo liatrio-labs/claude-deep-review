@@ -3,7 +3,8 @@ Tests for scripts/validate_bash_subagent.py
 
 Covers:
   - orchestrator (no agent_id) allowed all commands
-  - subagent valid echo-append pattern to $TMPDIR/deep-review-* allowed
+  - subagent valid echo-append to literal temp path deep-review-* allowed
+  - $TMPDIR structurally blocked with corrective guidance
   - subagent grep/cat/git/find commands blocked
   - subagent echo without append (>) blocked
   - subagent echo to wrong path blocked
@@ -66,7 +67,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Top-level command field used as fallback when tool_input missing"""
         hook_input = {
             "agent_id": "bug-detector",
-            "command": "echo 'data' >> $TMPDIR/deep-review-out",
+            "command": "echo 'data' >> /tmp/deep-review-out",
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
@@ -75,7 +76,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subagent valid echo-append pattern should be allowed"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo '[{\"bug\": true}]' >> $TMPDIR/deep-review-findings"},
+            "tool_input": {"command": "echo '[{\"bug\": true}]' >> /tmp/deep-review-findings"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
@@ -84,7 +85,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subagent valid echo-append with extra spaces should be allowed"""
         hook_input = {
             "agent_id": "security-reviewer",
-            "tool_input": {"command": "echo 'test' >>  $TMPDIR/deep-review-output.json"},
+            "tool_input": {"command": "echo 'test' >>  /tmp/deep-review-output.json"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
@@ -93,7 +94,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subagent valid echo-append with leading whitespace should be allowed"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "   echo 'data' >> $TMPDIR/deep-review-temp"},
+            "tool_input": {"command": "   echo 'data' >> /tmp/deep-review-temp"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
@@ -102,10 +103,33 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subagent valid echo-append with complex JSON data should be allowed"""
         hook_input = {
             "agent_id": "security-reviewer",
-            "tool_input": {"command": """echo '{"type":"security","severity":"high","line":42}' >> $TMPDIR/deep-review-security"""},
+            "tool_input": {"command": """echo '{"type":"security","severity":"high","line":42}' >> /tmp/deep-review-security"""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
+
+    def test_tmpdir_variable_blocked(self):
+        """$TMPDIR usage is structurally blocked — agents must use literal paths"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "echo 'data' >> $TMPDIR/deep-review-out"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertFalse(allowed)
+        self.assertIn("$TMPDIR is not allowed", message)
+        self.assertIn("literal path", message)
+
+    def test_tmpdir_in_payload_not_false_positive(self):
+        """$TMPDIR inside single-quoted JSON payload must NOT be blocked.
+        A finding about a $TMPDIR bug has the text in the payload, not the path."""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command":
+                "echo '{\"description\":\"the code uses $TMPDIR without checking if set\"}' "
+                ">> /tmp/deep-review-bug-detector-abc.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed, f"Should allow $TMPDIR inside payload, got: {message}")
 
     def test_subagent_grep_blocked(self):
         """Subagent grep command should be blocked"""
@@ -151,7 +175,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subagent echo with > (overwrite) instead of >> (append) should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' > $TMPDIR/deep-review-output"},
+            "tool_input": {"command": "echo 'data' > /tmp/deep-review-output"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed)
@@ -200,7 +224,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subagent with piped commands should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'test' | grep test >> $TMPDIR/deep-review-output"},
+            "tool_input": {"command": "echo 'test' | grep test >> /tmp/deep-review-output"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed)
@@ -209,13 +233,13 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subagent with command chaining should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'test' >> $TMPDIR/deep-review-out; rm -rf /"},
+            "tool_input": {"command": "echo 'test' >> /tmp/deep-review-out; rm -rf /"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed)
 
     def test_various_tmpdir_suffixes_allowed(self):
-        """Various valid $TMPDIR/deep-review-* suffixes should be allowed"""
+        """Various valid literal path deep-review-* suffixes should be allowed"""
         suffixes = [
             "findings",
             "output.json",
@@ -226,7 +250,7 @@ class TestValidateBashCommand(unittest.TestCase):
         for suffix in suffixes:
             hook_input = {
                 "agent_id": "test-agent",
-                "tool_input": {"command": f"echo 'data' >> $TMPDIR/deep-review-{suffix}"},
+                "tool_input": {"command": f"echo 'data' >> /tmp/deep-review-{suffix}"},
             }
             allowed, message = validate_bash_command(hook_input)
             self.assertTrue(
@@ -300,20 +324,20 @@ class TestValidateBashCommand(unittest.TestCase):
 
     # --- Adversarial pattern tests ---
 
-    def test_double_quoted_path_allowed(self):
-        """Double-quoted $TMPDIR path should be allowed (agents may quote the path)"""
+    def test_double_quoted_literal_path_allowed(self):
+        """Double-quoted literal path should be allowed"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "$TMPDIR/deep-review-bug-detector-abc.ndjson"'},
+            "tool_input": {"command": 'echo \'{"id":"bug-1"}\' >> "/tmp/deep-review-bug-detector-abc.ndjson"'},
         }
         allowed, message = validate_bash_command(hook_input)
-        self.assertTrue(allowed, f"Should allow double-quoted path, got: {message}")
+        self.assertTrue(allowed, f"Should allow double-quoted literal path, got: {message}")
 
     def test_ampersand_in_json_payload_allowed(self):
         """&& inside single-quoted JSON payload should be allowed (not a shell operator)"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo '{\"description\":\"a && b\"}' >> \"$TMPDIR/deep-review-out.ndjson\""},
+            "tool_input": {"command": "echo '{\"description\":\"a && b\"}' >> \"/tmp/deep-review-out.ndjson\""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow && inside JSON payload, got: {message}")
@@ -322,7 +346,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """> inside single-quoted JSON payload should be allowed (not a redirect)"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo '{\"description\":\"x > 0\"}' >> \"$TMPDIR/deep-review-out.ndjson\""},
+            "tool_input": {"command": "echo '{\"description\":\"x > 0\"}' >> \"/tmp/deep-review-out.ndjson\""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow > inside JSON payload, got: {message}")
@@ -331,7 +355,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Subshell injection via $() should be blocked (payload must be single-quoted)"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo $(rm -rf /) >> $TMPDIR/deep-review-out.ndjson"},
+            "tool_input": {"command": "echo $(rm -rf /) >> /tmp/deep-review-out.ndjson"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block subshell injection")
@@ -340,7 +364,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Backtick injection should be blocked (payload must be single-quoted)"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo `whoami` >> $TMPDIR/deep-review-out.ndjson"},
+            "tool_input": {"command": "echo `whoami` >> /tmp/deep-review-out.ndjson"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block backtick injection")
@@ -349,7 +373,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Embedded newline in command should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'data' >> $TMPDIR/deep-review-out.ndjson\nrm -rf /"},
+            "tool_input": {"command": "echo 'data' >> /tmp/deep-review-out.ndjson\nrm -rf /"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block command with embedded newline")
@@ -358,7 +382,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Double-quoted payload allows subshell expansion — must be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo "$(whoami)" >> $TMPDIR/deep-review-out.ndjson'},
+            "tool_input": {"command": 'echo "$(whoami)" >> /tmp/deep-review-out.ndjson'},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block double-quoted payload (allows $() expansion)")
@@ -367,7 +391,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Even simple double-quoted payloads are blocked (expansion risk)"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": 'echo "simple data" >> $TMPDIR/deep-review-out.ndjson'},
+            "tool_input": {"command": 'echo "simple data" >> /tmp/deep-review-out.ndjson'},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block all double-quoted payloads")
@@ -376,7 +400,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """ANSI-C quoting ($'...') is allowed — handles apostrophes safely"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": r"""echo $'{"id":"bug-1","description":"the function\'s return value"}' >> $TMPDIR/deep-review-out.ndjson"""},
+            "tool_input": {"command": r"""echo $'{"id":"bug-1","description":"the function\'s return value"}' >> /tmp/deep-review-out.ndjson"""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow ANSI-C quoted payload, got: {message}")
@@ -385,7 +409,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """ANSI-C quoting with various backslash escapes"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": r"""echo $'{"desc":"line1\\nline2","note":"it\'s fine"}' >> $TMPDIR/deep-review-out.ndjson"""},
+            "tool_input": {"command": r"""echo $'{"desc":"line1\\nline2","note":"it\'s fine"}' >> /tmp/deep-review-out.ndjson"""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow ANSI-C escapes, got: {message}")
@@ -394,7 +418,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Unquoted payload allows word splitting and globbing — must be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo data >> $TMPDIR/deep-review-out.ndjson"},
+            "tool_input": {"command": "echo data >> /tmp/deep-review-out.ndjson"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block unquoted payload")
@@ -403,7 +427,7 @@ class TestValidateBashCommand(unittest.TestCase):
         r"""Payload with \u0027 (escaped apostrophe) should be allowed — valid JSON in single quotes"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": r"""echo '{"description":"The context can\u0027t be null"}' >> $TMPDIR/deep-review-out.ndjson"""},
+            "tool_input": {"command": r"""echo '{"description":"The context can\u0027t be null"}' >> /tmp/deep-review-out.ndjson"""},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed, f"Should allow \\u0027 in payload, got: {message}")
@@ -421,7 +445,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """&& after valid path should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> $TMPDIR/deep-review-out && rm -rf /"},
+            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out && rm -rf /"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block && after path")
@@ -430,7 +454,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """&& without space after valid path should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> $TMPDIR/deep-review-out.ndjson&&rm -rf /"},
+            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out.ndjson&&rm -rf /"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block && without space after path")
@@ -439,7 +463,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """|| after valid path should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> $TMPDIR/deep-review-out || echo pwned"},
+            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out || echo pwned"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block || after path")
@@ -448,7 +472,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Heredoc should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> $TMPDIR/deep-review-out <<< 'injection'"},
+            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-out <<< 'injection'"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block heredoc")
@@ -457,7 +481,7 @@ class TestValidateBashCommand(unittest.TestCase):
         """Path traversal via ../ should be blocked"""
         hook_input = {
             "agent_id": "bug-detector",
-            "tool_input": {"command": "echo 'x' >> $TMPDIR/deep-review-../../etc/passwd"},
+            "tool_input": {"command": "echo 'x' >> /tmp/deep-review-../../etc/passwd"},
         }
         allowed, message = validate_bash_command(hook_input)
         self.assertFalse(allowed, "Should block path traversal")

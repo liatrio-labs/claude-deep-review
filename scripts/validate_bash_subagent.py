@@ -3,12 +3,16 @@
 PreToolUse hook: validate_bash_subagent
 
 Restricts Bash usage in subagents to the finding-emission echo-append pattern only:
-  echo ... >> <tmpdir>/deep-review-*
+  echo ... >> /tmp/deep-review-*  (or /private/tmp/, /var/folders/)
+
+Structural enforcement: $TMPDIR is BLOCKED with corrective guidance.
+Agents must use the literal resolved path from their dispatch prompt.
+This prevents sandbox permission prompts that occur with $TMPDIR.
 
 Reads hook input JSON from stdin. Checks:
 - agent_id: if missing/null (orchestrator), allow all commands
-- command: must match echo-append pattern for subagents
-- path: must be $TMPDIR/deep-review-* or a resolved literal path ending in /deep-review-*
+- command: must match echo-append to literal temp-directory path
+- $TMPDIR usage: blocked with message redirecting to literal path
 
 Exit 0: command allowed
 Exit 2: command blocked (with stderr feedback)
@@ -53,7 +57,7 @@ def validate_bash_command(hook_input):
     if not agent_id:
         return True, "Orchestrator allowed"
 
-    # Subagent: validate command is echo-append to $TMPDIR/deep-review-*
+    # Subagent: validate command is echo-append to literal temp path /deep-review-*
     if not command:
         return False, "Empty command not allowed for subagents"
 
@@ -65,15 +69,25 @@ def validate_bash_command(hook_input):
         if forbidden == first_token:
             return False, f"Command '{forbidden}' not allowed in subagents"
 
-    # Validate echo-append pattern: echo '...' >> <path>/deep-review-*
-    # Path can be $TMPDIR/deep-review-* or a resolved literal like /var/folders/.../T/deep-review-*
-    # The orchestrator resolves $TMPDIR to a literal path in Phase 1 to avoid sandbox
-    # permission prompts (sandbox can't statically verify $TMPDIR targets).
+    # Structural enforcement: block $TMPDIR, require literal resolved paths.
+    #
+    # Agents receive the resolved literal path via "Findings file:" in their
+    # dispatch prompt, but default to $TMPDIR out of habit. The sandbox prompts
+    # for permission on $TMPDIR because it can't statically verify the target.
+    # Rather than hoping agents follow instructions (research shows ~60% drift),
+    # we structurally block $TMPDIR and redirect agents to the literal path.
+    #
+    # Order matters: regex runs FIRST so $TMPDIR inside a single-quoted JSON
+    # payload (e.g., a finding describing a $TMPDIR bug) doesn't false-positive.
+    # The $TMPDIR block only fires for commands that didn't match the valid pattern.
+    #
     # Allowed payload quoting styles:
     #   Single-quoted:  echo '...'   (no expansion — safest, use for most findings)
     #   ANSI-C quoted:  echo $'...'  (allows \' escapes — use when description has apostrophes)
     # Double-quoted payloads are NOT allowed because $() and `` are shell expansion vectors.
     # Use \Z (not $) to reject embedded newlines.
+
+    # Step 1: Validate echo-append to literal temp-directory path
     pattern = (
         r"^\s*echo\s+"
         r"(?:"
@@ -82,12 +96,8 @@ def validate_bash_command(hook_input):
         r"\$'(?:[^'\\]|\\.)*'"       # ANSI-C quoted: allows backslash escapes
         r")"
         r"\s+>>\s+\"?"
-        r"(?:"
-        r"\$TMPDIR"                           # unexpanded $TMPDIR
-        r"|"
         r"/(?:tmp|private/tmp|var/folders)"   # literal temp-directory roots only
         r"(?:/[a-zA-Z0-9_.:-]+)*"            # subdirectory components (strict charset is intentional security guardrail)
-        r")"
         r"/deep-review-[a-zA-Z0-9_.:-]+\"?\Z"
     )
 
@@ -96,6 +106,17 @@ def validate_bash_command(hook_input):
         if ".." in command.split(">>", 1)[-1]:
             return False, "Path traversal (..) not allowed in output path"
         return True, "Valid echo-append pattern"
+
+    # Step 2: If not a valid pattern, check for $TMPDIR and block with guidance.
+    # This runs AFTER the regex so $TMPDIR inside a quoted payload doesn't
+    # false-positive (the regex would have matched and returned above).
+    if "$TMPDIR" in command and ">>" in command:
+        return False, (
+            "$TMPDIR is not allowed — use the literal path from "
+            "'Findings file:' in your prompt. The sandbox cannot verify "
+            "$TMPDIR targets. Replace $TMPDIR with the resolved path "
+            "(e.g., /tmp/ or /var/folders/...)."
+        )
 
     # Command did not match — run structural checks to produce a helpful message.
     # These checks are only reached for commands that failed the echo-append pattern,
