@@ -213,6 +213,23 @@ The `merge_findings.py` script handles both channels automatically — do not pa
 
 ---
 
+### AST-Safe Emission Protocol
+
+Agents must use ONLY this echo pattern — the sandbox's tree-sitter AST parser rejects all other forms in subagent sessions:
+
+```bash
+echo '<json_payload_with_no_literal_single_quotes>' >> ".deep-review/deep-review-{agent}-{sha}.ndjson"
+```
+
+- **Single quotes** around payload (`raw_string` AST node — in allowlist, auto-approved)
+- **Literal path** in double quotes (`string` AST node — in allowlist, auto-approved)
+- **Apostrophes** in JSON values: replace `'` with `\u0027` (valid JSON Unicode escape, `json.loads()` decodes automatically)
+- **Prohibited** (produce unrecognized AST nodes, silently denied): `$'...'` (ANSI-C quoting), `$VAR` in paths, heredocs, `python3 -c`, command substitution
+
+The plugin PreToolUse hook does not propagate to subagent execution contexts (documented Claude Code platform gap, 7 GitHub issues as of v2.1.96). AST auto-approval is the primary mechanism; the hook provides defense-in-depth for the main session only.
+
+---
+
 ## Merge Script Output Format
 
 After all agents return, run `merge_findings.py` as described in SKILL.md "Merge Phase 3 Outputs". The script writes a Phase 4 input JSON file to `{output_dir}/deep-review-phase4-input-{head_sha_short}.json` with this structure:
