@@ -56,7 +56,7 @@ class TestValidateBashCommand(unittest.TestCase):
     def test_subagent_detected_by_agent_type(self):
         """Subagent detected via agent_type when agent_id is absent"""
         hook_input = {
-            "agent_type": "claude-deep-review:bug-detector",
+            "agent_type": "deep-review:bug-detector",
             "tool_input": {"command": "grep -r TODO ."},
         }
         allowed, message = validate_bash_command(hook_input)

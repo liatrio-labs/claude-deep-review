@@ -41,16 +41,16 @@ All agents can still **pull** additional context — scoping controls what is pr
 
 **Always-on (6)** — default model per agent is defined in each agent's frontmatter; Frontier mode overrides to `opus` at dispatch:
 
-1. **bug-detector** — Logic errors, edge cases, null handling, race conditions, API misuse. Subagent: `claude-deep-review:bug-detector`.
-2. **security-reviewer** — OWASP top 10, injection, auth bypass, data exposure, crypto. Always Opus. Subagent: `claude-deep-review:security-reviewer`.
-3. **cross-file-impact** — Caller/dependent tracing, cross-module impact. Subagent: `claude-deep-review:cross-file-impact`.
-4. **test-analyzer** — Coverage gaps, test quality, DAMP principles. Subagent: `claude-deep-review:test-analyzer`.
-5. **conventions-and-intent** — CLAUDE.md/REVIEW.md adherence, intent alignment, comment accuracy. Always dispatched. When no CLAUDE.md or project convention files exist, the dispatch prompt notes: "No CLAUDE.md found — skip pass 1 (convention compliance), execute passes 2 and 3 only." Subagent: `claude-deep-review:conventions-and-intent`.
-6. **code-simplifier** — Simplification opportunities, dead code, redundancy. Subagent: `claude-deep-review:code-simplifier`.
+1. **bug-detector** — Logic errors, edge cases, null handling, race conditions, API misuse. Subagent: `deep-review:bug-detector`.
+2. **security-reviewer** — OWASP top 10, injection, auth bypass, data exposure, crypto. Always Opus. Subagent: `deep-review:security-reviewer`.
+3. **cross-file-impact** — Caller/dependent tracing, cross-module impact. Subagent: `deep-review:cross-file-impact`.
+4. **test-analyzer** — Coverage gaps, test quality, DAMP principles. Subagent: `deep-review:test-analyzer`.
+5. **conventions-and-intent** — CLAUDE.md/REVIEW.md adherence, intent alignment, comment accuracy. Always dispatched. When no CLAUDE.md or project convention files exist, the dispatch prompt notes: "No CLAUDE.md found — skip pass 1 (convention compliance), execute passes 2 and 3 only." Subagent: `deep-review:conventions-and-intent`.
+6. **code-simplifier** — Simplification opportunities, dead code, redundancy. Subagent: `deep-review:code-simplifier`.
 
 **Conditional (1):**
 
-7. **type-design-analyzer** — Type encapsulation, invariant expression. Only if new types introduced. Subagent: `claude-deep-review:type-design-analyzer`.
+7. **type-design-analyzer** — Type encapsulation, invariant expression. Only if new types introduced. Subagent: `deep-review:type-design-analyzer`.
 
 ---
 
@@ -61,7 +61,7 @@ Dispatch all applicable agents in a **single message**. Each agent definition al
 **For bug-detector:**
 ```
 Agent(
-  subagent_type: "claude-deep-review:bug-detector",
+  subagent_type: "deep-review:bug-detector",
   description: "Review: bug-detector",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
@@ -82,7 +82,7 @@ Agent(
 **For security-reviewer:**
 ```
 Agent(
-  subagent_type: "claude-deep-review:security-reviewer",
+  subagent_type: "deep-review:security-reviewer",
   description: "Review: security-reviewer",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
@@ -98,7 +98,7 @@ Agent(
 **For cross-file-impact:**
 ```
 Agent(
-  subagent_type: "claude-deep-review:cross-file-impact",
+  subagent_type: "deep-review:cross-file-impact",
   description: "Review: cross-file-impact",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
@@ -114,7 +114,7 @@ Agent(
 **For test-analyzer:**
 ```
 Agent(
-  subagent_type: "claude-deep-review:test-analyzer",
+  subagent_type: "deep-review:test-analyzer",
   description: "Review: test-analyzer",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
@@ -130,7 +130,7 @@ Agent(
 **For conventions-and-intent:**
 ```
 Agent(
-  subagent_type: "claude-deep-review:conventions-and-intent",
+  subagent_type: "deep-review:conventions-and-intent",
   description: "Review: conventions-and-intent",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules, or 'No CLAUDE.md found — skip pass 1 (convention compliance), execute passes 2 and 3 only' if no project convention files}
     Change summary: {from Phase 2f}
@@ -146,7 +146,7 @@ Agent(
 **For type-design-analyzer (conditional — only if new types introduced):**
 ```
 Agent(
-  subagent_type: "claude-deep-review:type-design-analyzer",
+  subagent_type: "deep-review:type-design-analyzer",
   description: "Review: type-design-analyzer",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
@@ -162,7 +162,7 @@ Agent(
 **For code-simplifier:**
 ```
 Agent(
-  subagent_type: "claude-deep-review:code-simplifier",
+  subagent_type: "deep-review:code-simplifier",
   description: "Review: code-simplifier",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}
     Change summary: {from Phase 2f}
@@ -179,7 +179,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type: "claude-deep-review:bug-detector",
+  subagent_type: "deep-review:bug-detector",
   model: "opus",  // Frontier mode override
   description: "Review: bug-detector",
   prompt: "Project context: {CLAUDE.md rules, REVIEW.md rules}

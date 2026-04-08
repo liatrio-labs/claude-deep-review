@@ -150,7 +150,7 @@ caller, changed config, new code path), cap at 65 regardless of the anchor above
 **Agent tool call template (per batch):**
 ```
 Agent(
-  subagent_type: "claude-deep-review:validator",
+  subagent_type: "deep-review:validator",
   description: "Validate batch {N}",
   prompt: "Findings:
     {paste 3-5 findings with IDs, descriptions, evidence, and blame tags (new/surfaced, author, date)}
@@ -314,7 +314,7 @@ See **SKILL.md Phase 7** for the primary instructions and Agent tool call templa
 **Agent tool call template (per finding):**
 ```
 Agent(
-  subagent_type: "claude-deep-review:challenger",
+  subagent_type: "deep-review:challenger",
   model: "opus",  // Frontier mode only; omit in Optimized mode (uses agent default: sonnet)
   description: "Blind challenge: {finding_id}",
   prompt: "Claim: {finding.title}

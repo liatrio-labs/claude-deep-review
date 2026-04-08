@@ -1,5 +1,5 @@
 {
-  "name": "claude-deep-review",
+  "name": "deep-review",
   "owner": {
     "name": "Liatrio"
   },
@@ -9,7 +9,7 @@
   },
   "plugins": [
     {
-      "name": "claude-deep-review",
+      "name": "deep-review",
       "description": "Multi-agent code review skill. Dispatches 5-7 concern-specialized agents with deterministic verification, prompt injection defense, and flexible delivery (PR/MR comments, markdown, chat). Supports GitHub and GitLab.",
       "source": "./",
       "strict": true
