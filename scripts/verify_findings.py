@@ -858,6 +858,15 @@ def load_input(findings_json_path):
     return data
 
 
+def _write_output(output, output_path):
+    """Write output JSON to file or stdout."""
+    if output_path:
+        with open(output_path, "w") as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+    else:
+        print(json.dumps(output, indent=2, ensure_ascii=False))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=(
@@ -888,6 +897,15 @@ def main():
         help=(
             "Path to a pre-fetched unified diff file. "
             "If omitted, the script runs 'git diff <base-branch>...HEAD'."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help=(
+            "Write output JSON to this file. "
+            "If omitted, output goes to stdout."
         ),
     )
     args = parser.parse_args()
@@ -959,7 +977,7 @@ def main():
         "stats": stats,
     }
 
-    print(json.dumps(output, indent=2, ensure_ascii=False))
+    _write_output(output, args.output)
 
     # Summary to stderr
     print(

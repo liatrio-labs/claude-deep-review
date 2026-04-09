@@ -31,6 +31,7 @@ from scripts.verify_findings import (
     batch_findings,
     get_diff,
     _extract_symbols,
+    _write_output,
     run,
     REPO_ROOT,
 )
@@ -1294,6 +1295,39 @@ class TestRunTimeout(unittest.TestCase):
         self.assertEqual(rc, 0)
         stdout2, stderr2, rc2 = run(["echo", "hi"], check=True)
         self.assertEqual(rc2, 0)
+
+
+class TestVerifyOutputFlag(unittest.TestCase):
+    """Tests for --output flag writing JSON to file."""
+
+    def test_output_flag_writes_json_to_file(self):
+        """--output writes valid JSON to the specified file."""
+        import json
+        output = {
+            "verified": [{"id": "bug-1", "origin": "new"}],
+            "eliminated": [],
+            "batches": [["bug-1"]],
+            "stats": {"total": 1, "new": 1, "surfaced": 0, "eliminated": 0},
+        }
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            outpath = f.name
+        try:
+            _write_output(output, outpath)
+            with open(outpath) as f:
+                written = json.load(f)
+            self.assertEqual(written["verified"][0]["id"], "bug-1")
+            self.assertEqual(written["stats"]["total"], 1)
+        finally:
+            os.unlink(outpath)
+
+    def test_output_none_prints_to_stdout(self):
+        """When output_path is None, JSON goes to stdout."""
+        import io
+        output = {"verified": [], "eliminated": [], "batches": [], "stats": {}}
+        with patch("sys.stdout", new_callable=io.StringIO) as mock_stdout:
+            _write_output(output, None)
+            result = mock_stdout.getvalue()
+        self.assertIn('"verified"', result)
 
 
 if __name__ == "__main__":
