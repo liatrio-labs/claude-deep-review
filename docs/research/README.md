@@ -33,6 +33,7 @@ Research artifacts that informed the design of claude-deep-review. Each document
 | 25 | [Sandbox Bash AST Auto-Allow](artifacts/25-sandbox-bash-ast-auto-allow.md) | How Claude Code's sandbox decides which Bash commands to auto-allow. Tree-sitter-bash WASM builds a full AST; any unrecognized node type (including `$'...'` ANSI-C quoting, `$VAR`, `$(cmd)`) returns `too-complex`, triggering a permission prompt even with `autoAllowBashIfSandboxed: true`. Five conditions must all pass for auto-allow. Issue #43713 documents the architectural conflict. |
 | 26 | [Hook-Sandbox-Permission Pipeline](artifacts/26-hook-sandbox-permission-pipeline.md) | Complete 7-stage evaluation pipeline for every Bash tool call: PreToolUse hooks (Stage 1) -> deny rules -> ask rules -> permission mode -> sandbox auto-allow (Stage 5) -> allow rules -> user prompt/auto-deny (Stage 7). Hook deny is absolute; hook allow only skips the interactive prompt. Per-command evaluation, not per-session. Plugin and project hooks merge at equal priority. |
 | 27 | [Plugin Hook Subagent Propagation](artifacts/27-plugin-hook-subagent-propagation.md) | Plugin hooks defined in `hooks/hooks.json` do not propagate to subagent execution contexts. 7 GitHub issues document the gap (no fix as of v2.1.96). Settings.json hooks may propagate better (conflicting evidence). Plugin agents cannot define hooks (hard security restriction). Recommended mitigation: eliminate Bash from agent tools or design for AST auto-approval without hook dependency. |
+| 28 | [Agent Dispatch Concurrency](artifacts/28-agent-dispatch-concurrency.md) | No hard cap on concurrent Agent tool calls — maxConcurrency=10 default. Model self-limits due to RLHF training conservatism and output token budget anxiety. Fix is explicit prompting plus concise prompts. Background agents are broken (6+ issues). All major skills dispatch foreground-parallel in one message. |
 
 ## How these informed the design
 
@@ -95,11 +96,12 @@ Key design decisions and which research artifacts support them:
 | AST-safe emission: `\u0027` for apostrophes, no `$'...'` | #25, #26 | Tree-sitter-bash AST parser rejects `ansi_c_string` nodes; in subagent sessions, `too-complex` = auto-denied with no recovery. `\u0027` is valid JSON that `json.loads()` decodes automatically, with no shell metacharacters inside single quotes |
 | Hook as defense-in-depth, not primary mechanism | #26, #27 | Plugin hooks don't propagate to subagent execution contexts (7 GitHub issues, v2.1.96). AST auto-approval via the sandbox's tree-sitter parser is the primary mechanism; the hook provides security enforcement only when it fires (main session) |
 | Platform limitation acceptance: plugin hooks don't reach subagents | #27 | No `propagateToSubagents` config exists despite being proposed (#27661). Text fallback channel in `merge_findings.py` provides code-controlled safety net (artifact #17: code enforcement > prompt enforcement) |
+| Single-message dispatch is prompting fix, not platform workaround | #28 | No infrastructure cap exists (maxConcurrency=10). Model self-limits from RLHF conservatism. Aggressive prompting with anti-pattern examples achieves ~100% parallel dispatch. Background agents are broken — foreground only |
 
 ## Adding new research
 
 When adding new research artifacts:
-1. Number sequentially (next: `28-`)
+1. Number sequentially (next: `29-`)
 2. Use lowercase-kebab-case for filenames
 3. Place in the `artifacts/` directory
 4. Update this index with a summary row and any new design decision mappings
