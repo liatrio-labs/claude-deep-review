@@ -129,9 +129,11 @@ After 2k, announce triage results before proceeding to Phase 3: PR title, review
 
 ## Phase 3: Review Agents
 
-**MANDATORY: Single-message parallel dispatch.** Prepare context for ALL applicable agents first (scoped diffs, risk classifications, summaries). Then dispatch ALL agents in ONE response containing multiple Agent tool calls. Do not dispatch agents across separate messages — serial dispatch adds 5-10 minutes of unnecessary latency.
+**MANDATORY: Emit ALL Agent tool_use blocks in a SINGLE response.** You MUST dispatch all 7 (or 6) agents in one message containing multiple Agent tool calls. Never split agents across multiple responses — not 2+3+2, not 4+3, not any other combination. All agents are fully independent with no shared state. Batching adds 5-10 minutes of unnecessary latency. If you feel uncertain about fitting all calls in one response, emit them anyway — the output budget is sufficient.
 
-If you find yourself about to send an Agent tool call for just one agent, STOP. Prepare all remaining agents and include them in the same message.
+**Never use `run_in_background: true`** for Phase 3 agents. Background agents cannot write files, lose output silently, and cause session hangs. Foreground parallel dispatch in one message is the canonical pattern.
+
+**Fallback:** If you emitted fewer than all agents in the previous message, dispatch the remaining agents immediately in the next message. Do not re-analyze or re-triage — just emit the remaining Agent tool calls.
 
 > **Fire-and-forget:** Agents are terminated after returning findings. Phase 7 spawns fresh blind agents — NOT these originals — to prevent sycophantic confirmation.
 

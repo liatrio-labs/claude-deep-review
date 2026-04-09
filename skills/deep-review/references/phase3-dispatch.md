@@ -54,6 +54,38 @@ All agents can still **pull** additional context — scoping controls what is pr
 
 ---
 
+## Dispatch Mandate
+
+**MANDATORY: Emit ALL Agent tool_use blocks in a SINGLE response.** You MUST dispatch all 7 (or 6) agents in one message containing multiple Agent tool calls. Never split agents across multiple responses — not 2+3+2, not 4+3, not any other combination. All agents are fully independent with no shared state. Batching adds 5-10 minutes of unnecessary latency. If you feel uncertain about fitting all calls in one response, emit them anyway — the output budget is sufficient.
+
+### Anti-patterns (WRONG)
+
+These are WRONG: dispatching 2 agents, waiting, then 3 more, then 2 more. Dispatching 4 agents then 3 in a follow-up. Dispatching 1 agent at a time. Any pattern that splits agents across multiple responses wastes minutes of wall-clock time and violates the protocol.
+
+### Correct dispatch pattern (all 7 in one response)
+
+```
+Agent(subagent_type: "deep-review:bug-detector", prompt: "Review PR #42...")
+Agent(subagent_type: "deep-review:security-reviewer", prompt: "Review PR #42...")
+Agent(subagent_type: "deep-review:cross-file-impact", prompt: "Review PR #42...")
+Agent(subagent_type: "deep-review:test-analyzer", prompt: "Review PR #42...")
+Agent(subagent_type: "deep-review:conventions-and-intent", prompt: "Review PR #42...")
+Agent(subagent_type: "deep-review:type-design-analyzer", prompt: "Review PR #42...")
+Agent(subagent_type: "deep-review:code-simplifier", prompt: "Review PR #42...")
+```
+
+All 7 Agent tool_use blocks appear in a single assistant response. The prompts above are abbreviated — each real prompt includes project context, change summary, risk classification, findings file path, and scoped diff per the templates below.
+
+### Fallback recovery
+
+If you emitted fewer than all agents in the previous message, dispatch the remaining agents immediately in the next message. Do not re-analyze or re-triage — just emit the remaining Agent tool calls.
+
+### Never use `run_in_background: true`
+
+Background agents cannot write files, lose output silently, and cause session hangs. Foreground parallel dispatch in one message is the canonical pattern. Never set `run_in_background: true` on Phase 3 agent calls.
+
+---
+
 ## Agent Tool Call Template
 
 Dispatch all applicable agents in a **single message**. Each agent definition already contains its role, instructions, false-positive exclusion list, confidence rubric, output schema, effort, model, and tools. The orchestrator provides **only the dynamic per-review content**:
