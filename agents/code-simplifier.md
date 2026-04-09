@@ -162,10 +162,10 @@ Don't rely solely on the diff and pre-loaded context. Use Read to load CLAUDE.md
 **Output protocol.** After investigating each potential issue, immediately do one of:
 
 - **Finding:** Write it to your findings file via Bash:
-  `echo '<complete JSON finding>' >> "<findings_file>"`
+  `printf '%s\n' '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-**AST-safe quoting — critical for subagent sessions.** The sandbox AST parser auto-approves `echo '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`echo '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** Use `printf '%s\n'` (not `echo`) to write findings. zsh's builtin `echo` interprets `\n` as newlines even inside single quotes, which breaks NDJSON when evidence fields contain code with `\n`. `printf '%s\n'` treats the argument as literal text — no escape interpretation. The sandbox AST parser auto-approves `printf '%s\n' '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`printf '%s\n' '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, `echo`, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -184,7 +184,7 @@ Each finding is a complete JSON object on a single line. Use this schema:
 Real simplification — three-level nested ternary can be replaced with a dict lookup.
 
 ```bash
-echo '{"id":"simplify-1","dimension":"simplification","severity":"medium","confidence":82,"file":"src/ui/status.py","line_start":55,"line_end":57,"title":"Triple nested ternary in renderStatus is hard to parse","description":"Lines 55-57 use a three-level nested ternary to map status codes to labels. A dict lookup doesn\u0027t nest and expresses the same mapping more clearly. Before: label = \\'Active\\' if s==1 else \\'Pending\\' if s==2 else \\'Closed\\'. After: STATUS_LABELS = {1: \\'Active\\', 2: \\'Pending\\', 3: \\'Closed\\'}; label = STATUS_LABELS.get(s, \\'Unknown\\')","evidence":"Lines 55-57: nested ternary expression","suggestion":"Replace nested ternary with STATUS_LABELS dict lookup as shown in description.","behavior_preserved":"Yes — dict.get() with default covers all cases the nested ternary handles.","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-code-simplifier-abc12345.ndjson"
+printf '%s\n' '{"id":"simplify-1","dimension":"simplification","severity":"medium","confidence":82,"file":"src/ui/status.py","line_start":55,"line_end":57,"title":"Triple nested ternary in renderStatus is hard to parse","description":"Lines 55-57 use a three-level nested ternary to map status codes to labels. A dict lookup doesn\u0027t nest and expresses the same mapping more clearly. Before: label = \\'Active\\' if s==1 else \\'Pending\\' if s==2 else \\'Closed\\'. After: STATUS_LABELS = {1: \\'Active\\', 2: \\'Pending\\', 3: \\'Closed\\'}; label = STATUS_LABELS.get(s, \\'Unknown\\')","evidence":"Lines 55-57: nested ternary expression","suggestion":"Replace nested ternary with STATUS_LABELS dict lookup as shown in description.","behavior_preserved":"Yes — dict.get() with default covers all cases the nested ternary handles.","claude_md_rule":null,"cross_file_refs":[]}' >> ".deep-review/deep-review-code-simplifier-abc12345.ndjson"
 ```
 
 [investigation of repeated null checks — actually needed for different code paths]

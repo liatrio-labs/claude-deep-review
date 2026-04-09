@@ -115,6 +115,33 @@ class TestValidateBashCommand(unittest.TestCase):
         allowed, message = validate_bash_command(hook_input)
         self.assertTrue(allowed)
 
+    def test_printf_pattern_allowed(self):
+        """printf '%s\\n' pattern (preferred over echo) should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "printf '%s\\n' '{\"id\":\"bug-1\"}' >> .deep-review/deep-review-bug-detector-abc12345.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed)
+
+    def test_printf_with_complex_json_allowed(self):
+        """printf with complex JSON payload containing \\u0027 should be allowed"""
+        hook_input = {
+            "agent_id": "security-reviewer",
+            "tool_input": {"command": "printf '%s\\n' '{\"id\":\"security-1\",\"description\":\"doesn\\u0027t validate\"}' >> \".deep-review/deep-review-security-reviewer-abc12345.ndjson\""},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed)
+
+    def test_printf_with_evidence_newlines_allowed(self):
+        """printf with evidence containing \\n (the reason we use printf) should be allowed"""
+        hook_input = {
+            "agent_id": "bug-detector",
+            "tool_input": {"command": "printf '%s\\n' '{\"evidence\":\"if x < 0:\\n    raise ValueError\"}' >> .deep-review/deep-review-bug-detector-abc12345.ndjson"},
+        }
+        allowed, message = validate_bash_command(hook_input)
+        self.assertTrue(allowed)
+
     def test_leading_whitespace_allowed(self):
         """Leading whitespace should be allowed"""
         hook_input = {

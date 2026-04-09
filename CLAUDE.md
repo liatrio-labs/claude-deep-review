@@ -42,12 +42,12 @@ SKILL.md derives `{plugin_root}` as two levels above the skill base directory. A
 ## Tests
 
 - pytest with `unittest.TestCase` style. Run: `python -m pytest tests/ -q`
-- 494 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
+- 497 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
 
 ## Output directory convention
 
 - `{output_dir}` in SKILL.md and references defaults to `.deep-review/` (repo-local, gitignored). Override with `$DEEP_REVIEW_OUTPUT_DIR` for CI or custom environments.
-- **AST-safe emission only.** Agents use `echo '...' >> "literal_path"` with regular single quotes. For apostrophes in JSON values, use `\u0027` (valid JSON Unicode escape). Never use `$'...'` ANSI-C quoting — the sandbox AST parser rejects it, and in subagent sessions this means silent denial.
+- **AST-safe emission only.** Agents use `printf '%s\n' '...' >> "literal_path"` (not `echo` — zsh's builtin `echo` interprets `\n` as newlines even in single quotes, breaking NDJSON). For apostrophes in JSON values, use `\u0027` (valid JSON Unicode escape). Never use `$'...'` ANSI-C quoting — the sandbox AST parser rejects it, and in subagent sessions this means silent denial.
 - The PreToolUse hook validates echo-append patterns and emits `permissionDecision` JSON on stdout. **The hook does not propagate to subagents** (Claude Code platform limitation) — AST auto-approval is the primary mechanism, the hook is defense-in-depth.
 - The head SHA (`head_sha_short`) is resolved in Phase 2 after PR checkout — not in Phase 1 — so filenames reflect the actual PR HEAD.
 

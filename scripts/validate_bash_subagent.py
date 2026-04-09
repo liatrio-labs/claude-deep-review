@@ -20,12 +20,13 @@ import json
 import re
 import sys
 
-# Match: echo '<payload>' >> <path>/deep-review-<filename>
+# Match: printf '%s\n' '<payload>' >> <path>/deep-review-<filename>
+# Also accepts: echo '<payload>' >> <path>/deep-review-<filename> (legacy)
 # Payload must be single-quoted or ANSI-C quoted (no double-quotes — expansion risk).
 # Path can be relative (.deep-review/...) or absolute (/path/to/...).
 # \Z blocks embedded newlines.
 ECHO_APPEND_RE = re.compile(
-    r"^\s*echo\s+"
+    r"^\s*(?:printf\s+'%s\\n'\s+|echo\s+)"  # printf '%s\n' or echo (legacy)
     r"(?:'[^']*'|\$'(?:[^'\\]|\\.)*')"  # single-quoted or ANSI-C quoted payload
     r"\s+>>\s+"                           # append operator
     r"(\"?[^\s\"]+\"?)"                   # capture path (with optional quotes)
