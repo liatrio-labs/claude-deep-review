@@ -141,8 +141,6 @@ printf '%s\n' '<json_payload_with_no_literal_single_quotes>' >> ".deep-review/de
 - **Apostrophes** in JSON values: replace `'` with `\u0027` (valid JSON Unicode escape, `json.loads()` decodes automatically)
 - **Prohibited** (produce unrecognized AST nodes, silently denied): `$'...'` (ANSI-C quoting), `$VAR` in paths, heredocs, `echo`, `python3 -c`, command substitution
 
-The plugin PreToolUse hook does not propagate to subagent execution contexts (documented Claude Code platform gap, 7 GitHub issues as of v2.1.96). AST auto-approval is the primary mechanism; the hook provides defense-in-depth for the main session only.
-
 ---
 
 ## Merge Script Output Format

@@ -18,7 +18,7 @@ Deep Review dispatches 6-7 specialized agents in parallel, each examining your c
 
 Two review modes are available. **Optimized** (default) is ~40% cheaper and faster — Sonnet for most agents, Opus only for security. **Frontier** uses Opus for all agents. Security always gets Opus in both modes because different models have complementary vulnerability-class detection profiles.
 
-Agents write findings to NDJSON files in a repo-local `.deep-review/` directory via Bash append — a structurally separate channel from investigation, enforced by a PreToolUse hook that blocks non-emission Bash commands. The output directory is overridable via `$DEEP_REVIEW_OUTPUT_DIR` for CI environments.
+Agents write findings to NDJSON files in a repo-local `.deep-review/` directory via Bash append — a structurally separate channel from investigation. The output directory is overridable via `$DEEP_REVIEW_OUTPUT_DIR` for CI environments.
 
 After agents report findings, a six-script deterministic pipeline filters false positives:
 
@@ -143,7 +143,6 @@ Every architectural decision is grounded in published research:
 | Git blame classification | SonarQube's baseline matching is the gold standard; blame-based new/surfaced is the best approach for AI-native tools |
 | Deterministic pipeline scripts | LLM-on-LLM verification shares correlated errors ~60%; mandatory steps are workflows not agent decisions (artifact #17) |
 | Dual-channel emission (Bash append) | Format compliance degrades beyond 4K output tokens (LongGenBench); production frameworks universally separate investigation from structuring (artifact #24) |
-| PreToolUse hook enforcement | Structural enforcement > instruction-level guidance; Claude Code hooks provide hard behavioral constraints on subagents |
 | Suggest-not-modify config | Google SRE Workbook: tools should suggest config changes through reviewable mechanisms, not modify automatically |
 | REVIEW.md hierarchy | Nearest-only with explicit inheritance (Ruff, Biome v2) after ESLint's painful cascading lessons |
 | No arbitrary cap | Pipeline precision means all surviving findings are real — caps mask pipeline quality issues |
@@ -153,7 +152,7 @@ Every architectural decision is grounded in published research:
 ```
 claude-deep-review/
 ├── .claude-plugin/
-│   └── plugin.json                       # Plugin manifest (hooks reference)
+│   └── plugin.json                       # Plugin manifest
 ├── agents/                               # 10 named subagent definitions
 │   ├── bug-detector.md                   #   7 discovery agents (Read/Grep/Glob/LSP/Bash)
 │   ├── security-reviewer.md
@@ -165,17 +164,14 @@ claude-deep-review/
 │   ├── validator.md                      #   3 quality-gate agents (Read/Grep/Glob/LSP)
 │   ├── challenger.md
 │   └── change-summarizer.md
-├── hooks/
-│   └── hooks.json                        # PreToolUse hook — restricts subagent Bash to finding emission
-├── scripts/                              # 7 stdlib-only Python scripts (deterministic pipeline)
+├── scripts/                              # 6 stdlib-only Python scripts (deterministic pipeline)
 │   ├── merge_findings.py                 #   Phase 3→4: collect + deduplicate agent findings
 │   ├── verify_findings.py                #   Phase 4: blame classification, factual verification
 │   ├── apply_validations.py              #   Phase 5→6: apply validator confidence adjustments
 │   ├── filter_findings.py                #   Phase 6: thresholds, dedup, routing
 │   ├── apply_challenges.py               #   Phase 7→8: challenge results, dedup, rank
-│   ├── post_review.py                    #   Phase 8: PR/MR comment posting
-│   └── validate_bash_subagent.py         #   Hook: Bash command pattern validation
-├── tests/                                # 497 pytest tests
+│   └── post_review.py                    #   Phase 8: PR/MR comment posting
+├── tests/                                # 443 pytest tests
 ├── skills/
 │   ├── deep-review/
 │   │   ├── SKILL.md                      # Main orchestration (8 phases)

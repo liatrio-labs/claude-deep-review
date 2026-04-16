@@ -30,7 +30,6 @@ Scripts and agents live at the plugin root, not under `skills/deep-review/`:
 ```
 claude-deep-review/          <- plugin root ({plugin_root})
 ├── agents/
-├── hooks/                    <- PreToolUse hook config (Bash restriction for subagents)
 ├── scripts/
 ├── tests/
 └── skills/
@@ -42,14 +41,13 @@ SKILL.md derives `{plugin_root}` as two levels above the skill base directory. A
 ## Tests
 
 - pytest with `unittest.TestCase` style. Run: `python -m pytest tests/ -q`
-- 497 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`, `validate_bash_subagent.py`.
+- 443 tests covering all pipeline scripts: `verify_findings.py`, `filter_findings.py`, `post_review.py`, `merge_findings.py`, `apply_validations.py`, `apply_challenges.py`.
 
 ## Output directory convention
 
 - `{output_dir}` in SKILL.md and references defaults to `.deep-review/` (repo-local, gitignored). Override with `$DEEP_REVIEW_OUTPUT_DIR` for CI or custom environments.
 - **File-based context handoff.** Shared context (diff, rules, summary, risk) is written to `{output_dir}/deep-review-context-{head_sha_short}.md` during Phase 2. Agent dispatch prompts contain only the context file path and findings file path (~100 tokens each), ensuring all 7 fit in a single response. Agents Read the context file at startup.
-- **AST-safe emission only.** Agents use `printf '%s\n' '...' >> "literal_path"` (not `echo` — zsh's builtin `echo` interprets `\n` as newlines even in single quotes, breaking NDJSON). For apostrophes in JSON values, use `\u0027` (valid JSON Unicode escape). Never use `$'...'` ANSI-C quoting — the sandbox AST parser rejects it, and in subagent sessions this means silent denial.
-- The PreToolUse hook validates echo-append patterns and emits `permissionDecision` JSON on stdout. **The hook does not propagate to subagents** (Claude Code platform limitation) — AST auto-approval is the primary mechanism, the hook is defense-in-depth.
+- **AST-safe emission.** Agents use `printf '%s\n' '...' >> "literal_path"` (not `echo` — zsh's builtin `echo` interprets `\n` as newlines even in single quotes, breaking NDJSON). For apostrophes in JSON values, use `\u0027` (valid JSON Unicode escape). Avoid `$'...'` ANSI-C quoting, `$VAR`, heredocs, `python3 -c`, and command substitution — the tree-sitter-bash AST parser treats these as unrecognized nodes and they get silently denied in subagent sessions running with sandbox auto-approval.
 - The head SHA (`head_sha_short`) is resolved in Phase 2 after PR checkout — not in Phase 1 — so filenames reflect the actual PR HEAD.
 
 ## Writing pipeline JSON
