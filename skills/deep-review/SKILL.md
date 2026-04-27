@@ -95,7 +95,7 @@ After 2k, announce triage results before proceeding to Phase 3: PR title, review
 
 ### Write shared agent context file
 
-Write all shared context to `{output_dir}/deep-review-context-{head_sha_short}.md` using `python3 -c "import json; ..."`. Contents: CLAUDE.md/REVIEW.md rules, change summary (2f), risk classification (2e), full diff in `<untrusted-code-content>` tags, test files (2g), history context (2i). Agents Read this file at startup — dispatch prompts contain only two file paths (~100 tokens each), ensuring all 7 fit in one response.
+Write all shared context to `{output_dir}/deep-review-context-{head_sha_short}.md` using `python3 -c "import json; ..."`. Contents: CLAUDE.md/REVIEW.md rules, change summary (2f), risk classification (2e), full diff in `<untrusted-code-content>` tags, test files (2g), history context (2i), and a **`## Validator`** section that records the absolute path of the NDJSON validator: `python3 "{plugin_root}/scripts/validate_ndjson.py" "<your_findings_file>"`. Agents Read this file at startup — dispatch prompts contain only two file paths (~100 tokens each), ensuring all 7 fit in one response. Phase 3 agents must run the validator command from the `## Validator` section as their final step before returning, re-emitting any findings the validator flags as malformed (see `references/ndjson-emission-contract.md`).
 
 ---
 

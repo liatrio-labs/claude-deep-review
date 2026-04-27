@@ -224,7 +224,7 @@ Don't rely solely on the diff and pre-loaded context. Use Read to load CLAUDE.md
   `printf '%s\n' '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-**AST-safe quoting — critical for subagent sessions.** Use `printf '%s\n'` (not `echo`) to write findings. zsh's builtin `echo` interprets `\n` as newlines even inside single quotes, which breaks NDJSON when evidence fields contain code with `\n`. `printf '%s\n'` treats the argument as literal text — no escape interpretation. The sandbox AST parser auto-approves `printf '%s\n' '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`printf '%s\n' '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, `echo`, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** Use `printf '%s\n'` (not `echo`) to write findings. zsh's builtin `echo` interprets `\n` as newlines even inside single quotes, which breaks NDJSON when evidence fields contain code with `\n`. `printf '%s\n'` treats the argument as literal text — no escape interpretation. The sandbox AST parser auto-approves `printf '%s\n' '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`printf '%s\n' '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). **Same rule for control characters:** literal newlines, tabs, and carriage returns inside any JSON string value must be written as the two-character escapes `\n`, `\t`, `\r` — a raw byte 0x0A inside a string splits one finding into two corrupt physical lines. Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, `echo`, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -233,7 +233,7 @@ For each potential issue: (1) Investigate using Read/Grep/Glob/LSP. (2) Decide: 
 Each finding is a complete JSON object on a single line. Use this schema:
 
 ```json
-{"id": "conv-<n>", "dimension": "<convention|intent|comment_accuracy>", "severity": "<critical|high|medium|low>", "confidence": <0-100>, "file": "<path>", "line_start": <number>, "line_end": <number>, "title": "<one-line summary>", "description": "<detailed explanation of the violation or inaccuracy>", "evidence": "<specific code or context that supports this finding>", "suggestion": "<concrete fix or improvement>", "claude_md_rule": "<REQUIRED for convention findings: quoted rule text and its source file>", "spec_text": "<REQUIRED for intent findings: quoted spec text that the code contradicts>", "cross_file_refs": ["<other files involved in this finding>"]}
+{"id": "conv-<n>", "dimension": "<convention|intent|comment_accuracy>", "severity": "<critical|high|medium|low>", "confidence": <0-100>, "file": "<path>", "line_start": <number>, "line_end": <number>, "title": "<one-line summary>", "description": "<single-paragraph prose explaining the violation or inaccuracy — no code blocks, no multi-line snippets; cite the rule in claude_md_rule or spec_text>", "evidence": "<specific code or context that supports this finding>", "suggestion": "<concrete fix or improvement>", "claude_md_rule": "<REQUIRED for convention findings: quoted rule text and its source file>", "spec_text": "<REQUIRED for intent findings: quoted spec text that the code contradicts>", "cross_file_refs": ["<other files involved in this finding>"]}
 ```
 
 **Example:**
@@ -250,10 +250,25 @@ printf '%s\n' '{"id":"conv-1","dimension":"convention","severity":"medium","conf
 SKIP: function naming in utils.py — uses snake_case per CLAUDE.md section 3; no violation.
 ```
 
+**One physical line per finding.** A literal newline, tab, or carriage return inside any JSON string value splits one finding into two corrupt records. If a description needs multiple sentences, separate them with `\n` (two characters), not a real newline. Full escape table and rationale: `references/ndjson-emission-contract.md`.
+
+**BAD — real newline byte splits the JSON across two lines:**
+
+```bash
+printf '%s\n' '{"id":"<id>","description":"Issue at line 42.
+The value is null."}' >> "<findings_file>"
+```
+
+**GOOD — newline escaped to two characters `\n`:**
+
+```bash
+printf '%s\n' '{"id":"<id>","description":"Issue at line 42.\nThe value is null."}' >> "<findings_file>"
+```
+
 For convention findings: the `claude_md_rule` field MUST be non-null and MUST quote the specific rule. Findings without a cited rule will be rejected.
 
 For intent findings: the `spec_text` field MUST be non-null and MUST quote the specific spec text. Findings without a cited spec will be rejected.
 
 Only report findings with confidence >= 60. Be thorough but filter aggressively — quality over quantity. If you find no issues above the threshold, emit no Bash echo calls.
 
-**Remember:** Write each finding to your findings file via Bash immediately after confirming it. Do not accumulate findings for a summary at the end.
+**Remember:** Emit each finding immediately after confirming it (don't batch). When you have no more findings to investigate, run `python3 "<plugin_root>/scripts/validate_ndjson.py" "<findings_file>"` (the absolute path is in the context file's "Validator" section). Re-emit any findings the validator flags as malformed, then return.

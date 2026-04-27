@@ -139,7 +139,12 @@ printf '%s\n' '<json_payload_with_no_literal_single_quotes>' >> ".deep-review/de
 - **Single quotes** around payload (`raw_string` AST node — in allowlist, auto-approved)
 - **Literal path** in double quotes (`string` AST node — in allowlist, auto-approved)
 - **Apostrophes** in JSON values: replace `'` with `\u0027` (valid JSON Unicode escape, `json.loads()` decodes automatically)
+- **Control characters in JSON string values** (newline, tab, carriage return) must be replaced with the two-character escape sequences `\n`, `\t`, `\r`. A literal newline byte inside a JSON string value splits one finding into two corrupt physical lines, which the merge pipeline then mis-parses. See `references/ndjson-emission-contract.md` for the full per-agent contract (description-field constraints, BAD/GOOD examples, validator step).
 - **Prohibited** (produce unrecognized AST nodes, silently denied): `$'...'` (ANSI-C quoting), `$VAR` in paths, heredocs, `echo`, `python3 -c`, command substitution
+
+### Final-step NDJSON validation
+
+Each Phase 3 agent runs `python3 "{plugin_root}/scripts/validate_ndjson.py" "<findings_file>"` as its last action before returning — the validator path is written into the context file's `## Validator` section by Phase 2. The validator is a regular `python3 path/script.py args` invocation (three plain word tokens), so it passes the subagent sandbox AST parser cleanly even though `python3 -c "..."` does not. Exit code 0 means every line parses; non-zero means the agent must re-emit any flagged findings with proper escaping before returning. This catches malformed findings while the agent still has the original strings in scope, instead of leaving the orchestrator to fall back to text-channel reconstruction (which loses `cross_file_refs` and other structured fields).
 
 ---
 

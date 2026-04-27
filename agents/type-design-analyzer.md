@@ -167,7 +167,7 @@ Don't rely solely on the diff and pre-loaded context. Prefer LSP to navigate typ
   `printf '%s\n' '<complete JSON finding>' >> "<findings_file>"`
 - **Skip:** Note in your text output: `SKIP: [one-line reason]`
 
-**AST-safe quoting — critical for subagent sessions.** Use `printf '%s\n'` (not `echo`) to write findings. zsh's builtin `echo` interprets `\n` as newlines even inside single quotes, which breaks NDJSON when evidence fields contain code with `\n`. `printf '%s\n'` treats the argument as literal text — no escape interpretation. The sandbox AST parser auto-approves `printf '%s\n' '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`printf '%s\n' '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, `echo`, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
+**AST-safe quoting — critical for subagent sessions.** Use `printf '%s\n'` (not `echo`) to write findings. zsh's builtin `echo` interprets `\n` as newlines even inside single quotes, which breaks NDJSON when evidence fields contain code with `\n`. `printf '%s\n'` treats the argument as literal text — no escape interpretation. The sandbox AST parser auto-approves `printf '%s\n' '...'` but rejects `$'...'` (ANSI-C quoting). In subagent sessions, rejected commands are silently denied with no recovery. Each finding must be a complete, valid JSON object on a single line. Use the schema below. Always use single-quoted payloads (`printf '%s\n' '...'`). If your description contains an apostrophe, replace it with `\u0027` (valid JSON Unicode escape — `json.loads()` decodes it back to `'` automatically). **Same rule for control characters:** literal newlines, tabs, and carriage returns inside any JSON string value must be written as the two-character escapes `\n`, `\t`, `\r` — a raw byte 0x0A inside a string splits one finding into two corrupt physical lines. Never use `$'...'` ANSI-C quoting, `$VAR` in paths, heredocs, `echo`, or `python3 -c`. Do not use double-quoted payloads — they allow shell expansion.
 
 Bash is available ONLY for writing findings to your NDJSON file. All code investigation uses Read, Grep, Glob, and LSP.
 
@@ -176,7 +176,7 @@ For each potential issue: (1) Investigate using Read/Grep/Glob/LSP. (2) Decide: 
 Each finding is a complete JSON object on a single line. Use this schema:
 
 ```json
-{"id": "type-<n>", "dimension": "type_design", "severity": "<critical|high|medium|low>", "confidence": <0-100>, "file": "<path>", "line_start": <number>, "line_end": <number>, "title": "<one-line summary>", "description": "<detailed explanation including dimension ratings: Encapsulation: X/10, Expression: X/10, Usefulness: X/10, Enforcement: X/10>", "evidence": "<specific code or context that supports this finding>", "suggestion": "<concrete fix — show how to restructure the type to enforce invariants>", "invalid_state_example": "<a concrete example of the invalid state this design allows, or null if not applicable>", "claude_md_rule": "<relevant CLAUDE.md/REVIEW.md rule if applicable, otherwise null>", "cross_file_refs": ["<other files involved in this finding>"]}
+{"id": "type-<n>", "dimension": "type_design", "severity": "<critical|high|medium|low>", "confidence": <0-100>, "file": "<path>", "line_start": <number>, "line_end": <number>, "title": "<one-line summary>", "description": "<single-paragraph prose leading with the four ratings on one line — Encapsulation: X/10, Expression: X/10, Usefulness: X/10, Enforcement: X/10 — followed by the issue and recommendation; no code blocks, no multi-line snippets>", "evidence": "<specific code or context that supports this finding>", "suggestion": "<concrete fix — show how to restructure the type to enforce invariants>", "invalid_state_example": "<a concrete example of the invalid state this design allows, or null if not applicable>", "claude_md_rule": "<relevant CLAUDE.md/REVIEW.md rule if applicable, otherwise null>", "cross_file_refs": ["<other files involved in this finding>"]}
 ```
 
 **Example:**
@@ -193,8 +193,23 @@ printf '%s\n' '{"id":"type-1","dimension":"type_design","severity":"high","confi
 SKIP: OrderStatus enum — switch in processOrder() has exhaustive matching with compile-time check; no invariant gap.
 ```
 
-For each finding, include the four dimension ratings (Encapsulation, Invariant Expression, Invariant Usefulness, Invariant Enforcement) in the description field. Format them as a brief summary, e.g., "Encapsulation: 4/10, Expression: 6/10, Usefulness: 8/10, Enforcement: 3/10" followed by the specific issue and recommendation.
+**One physical line per finding.** A literal newline, tab, or carriage return inside any JSON string value splits one finding into two corrupt records. If a description needs multiple sentences, separate them with `\n` (two characters), not a real newline. Full escape table and rationale: `references/ndjson-emission-contract.md`.
+
+**BAD — real newline byte splits the JSON across two lines:**
+
+```bash
+printf '%s\n' '{"id":"<id>","description":"Issue at line 42.
+The value is null."}' >> "<findings_file>"
+```
+
+**GOOD — newline escaped to two characters `\n`:**
+
+```bash
+printf '%s\n' '{"id":"<id>","description":"Issue at line 42.\nThe value is null."}' >> "<findings_file>"
+```
+
+For each finding, include the four dimension ratings (Encapsulation, Invariant Expression, Invariant Usefulness, Invariant Enforcement) in the description field. Format them as a brief summary on a single line, e.g., "Encapsulation: 4/10, Expression: 6/10, Usefulness: 8/10, Enforcement: 3/10" followed by the specific issue and recommendation in the same paragraph.
 
 Only report findings with confidence >= 60. Be thorough but filter aggressively — quality over quantity. If you find no issues above the threshold, emit no Bash echo calls.
 
-**Remember:** Write each finding to your findings file via Bash immediately after confirming it. Do not accumulate findings for a summary at the end.
+**Remember:** Emit each finding immediately after confirming it (don't batch). When you have no more findings to investigate, run `python3 "<plugin_root>/scripts/validate_ndjson.py" "<findings_file>"` (the absolute path is in the context file's "Validator" section). Re-emit any findings the validator flags as malformed, then return.
