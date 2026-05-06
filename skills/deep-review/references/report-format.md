@@ -11,11 +11,13 @@ Use this template for the unified review report. Adapt section headers based on 
 All code references in findings MUST use platform-appropriate permalinks so they remain stable:
 
 **GitHub:**
+
 ```
 https://github.com/{owner}/{repo}/blob/{full_sha}/{path}#L{start}-L{end}
 ```
 
 **GitLab:**
+
 ```
 https://gitlab.com/{group}/{project}/-/blob/{full_sha}/{path}#L{start}-L{end}
 ```
@@ -23,6 +25,7 @@ https://gitlab.com/{group}/{project}/-/blob/{full_sha}/{path}#L{start}-L{end}
 For self-hosted instances, replace the hostname with the one detected from the git remote URL. See SKILL.md Phase 2a for VCS detection and Phase 8 (Stage 0) for permalink format details.
 
 **Rules:**
+
 - MUST use the full 40-character SHA, never an abbreviated hash. If you only have a ref (branch name, short SHA, `HEAD`), resolve it first: `gh api repos/{owner}/{repo}/commits/{ref} --jq .sha`
 - MUST include at least 1 line of context before and after the relevant line. For example, if the issue is on line 5, link to `#L4-L6`. If the issue spans lines 10-15, link to `#L9-L16`.
 - For single-line issues, still use the range format with context (e.g., `#L4-L6`).
@@ -101,7 +104,9 @@ Example: "This PR adds JWT-based authentication to the API layer. The token vali
 
 **Evidence:**
 ```
+
 {finding.evidence — the actual code snippet or behavior demonstrating the issue}
+
 ```
 
 **Suggested fix:**
@@ -202,6 +207,7 @@ Severity has been downgraded one level from the original classification (see Pha
 | **Failed/skipped agents** | {list or "none"} |
 | **Total review time** | {duration from Phase 1 to Phase 8} |
 | **Prompt injection** | {N injection artifacts detected and discarded, or "none detected"} |
+
 ```
 
 ---
@@ -259,6 +265,7 @@ When posting inline comments at specific lines:
 
 ---
 *Confidence: {confidence}% | deep-review*
+
 ```
 
 **`suggested_fix_code` field:** Optional. When an agent can propose a direct code replacement for the lines at `finding.file:line_start-line_end`, it populates `suggested_fix_code` with the replacement code. The `scripts/post_review.py` delivery script renders this as a GitHub `suggestion` block (one-click apply) or GitLab suggestion. When null or absent, only the prose `suggestion` field is shown. See `references/delivery-guide.md` for the findings JSON schema used by `post_review.py`.

@@ -164,6 +164,7 @@ jq -n \
     -H "Accept: application/vnd.github+name" \
     repos/OWNER/REPO/pulls/42/reviews \
     --input -
+
 ```
 
 The critical detail: `jq --arg` treats the value as a pre-escaped string, so `$`, backticks, quotes, and newlines in `$COMMENT_BODY` all survive intact. Use `--argjson` for integers and booleans (line numbers, boolean flags).

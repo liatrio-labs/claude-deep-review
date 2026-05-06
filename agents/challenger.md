@@ -19,6 +19,7 @@ Note: The orchestrator overrides `effort` to `"max"` and `model` to `"opus"` in 
 - The **raw code** at the location being claimed (wrapped in `<untrusted-code-content>` tags)
 
 You do NOT receive:
+
 - The original reviewer's evidence
 - The original confidence score
 - Any chain of thought or reasoning from the original agent

@@ -17,6 +17,7 @@ The report includes: executive summary with finding counts (no verdict), severit
 ### Permalinks
 
 Use platform-appropriate full-SHA permalink format:
+
 - **GitHub:** `https://github.com/{owner}/{repo}/blob/{full_sha}/{path}#L{start}-L{end}`
 - **GitLab:** `https://gitlab.com/{group}/{project}/-/blob/{full_sha}/{path}#L{start}-L{end}`
 
@@ -102,6 +103,7 @@ See `references/delivery-guide.md` for the findings JSON schema and validation d
 The user decides whether to create tasks — always ask before finishing.
 
 **If pr_comment_set exists:**
+
 ```
 AskUserQuestion(
   questions: [{
@@ -118,6 +120,7 @@ AskUserQuestion(
 ```
 
 **If no pr_comment_set:**
+
 ```
 AskUserQuestion(
   questions: [{
@@ -194,6 +197,7 @@ AskUserQuestion(
 Emojis: critical=🔴, high=🟠, medium=🟡, low=💡.
 
 **Option behavior:**
+
 - **"Include as PR comment"** — add to selection set, advance to next finding
 - **"Skip this finding"** — exclude from selection set, add to dismissed_set, advance to next finding
 - **"Include all remaining {Severity}"** — auto-include all unreviewed findings in the current severity group, then advance to the next severity group

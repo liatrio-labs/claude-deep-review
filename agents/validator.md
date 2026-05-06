@@ -47,6 +47,7 @@ caller, changed config, new code path), cap at 65 regardless of the anchor above
 ## What you receive
 
 Each batch includes:
+
 - 3-5 findings with their IDs, descriptions, evidence, and blame tags (new/surfaced, author, date)
 - The relevant code sections wrapped in `<untrusted-code-content>` tags
 - Blame classification from Phase 4a

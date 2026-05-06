@@ -49,7 +49,7 @@ Issue #20679's workaround is telling: "Don't use `run_in_background: true`. Inst
 
 ## Named agents add no overhead that limits batch size
 
-The `subagent_type` parameter controls which agent configuration loads, with two distinct spawn paths. **Fork agents** (no `subagent_type`) share the parent's prompt cache — the fork child receives the parent's rendered system prompt and exact tool array, producing byte-identical API request prefixes. **Typed agents** (`subagent_type` specified) start fresh with zero context but can use any model. 
+The `subagent_type` parameter controls which agent configuration loads, with two distinct spawn paths. **Fork agents** (no `subagent_type`) share the parent's prompt cache — the fork child receives the parent's rendered system prompt and exact tool array, producing byte-identical API request prefixes. **Typed agents** (`subagent_type` specified) start fresh with zero context but can use any model.
 
 Neither path imposes batch-size constraints. The named agent resolution is a simple lookup in the agent definition registry. Model resolution follows a priority chain: `CLAUDE_CODE_SUBAGENT_MODEL` env var → per-invocation `model` parameter → subagent definition's `model` frontmatter → main conversation's model. This is lightweight string matching, not a bottleneck that would limit how many agents can be dispatched simultaneously.
 

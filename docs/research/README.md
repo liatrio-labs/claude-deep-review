@@ -101,6 +101,7 @@ Key design decisions and which research artifacts support them:
 ## Adding new research
 
 When adding new research artifacts:
+
 1. Number sequentially (next: `29-`)
 2. Use lowercase-kebab-case for filenames
 3. Place in the `artifacts/` directory

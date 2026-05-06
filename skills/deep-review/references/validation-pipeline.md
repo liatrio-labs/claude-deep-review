@@ -37,6 +37,7 @@ When the review target is a PR/MR, pass `--diff-file` pointing to the diff saved
 The merge script injects the `agent` field and validates `dimension` — do not construct the input JSON manually.
 
 **Output JSON schema:**
+
 ```json
 {
     "verified": [...],
@@ -60,11 +61,13 @@ Each finding in `verified` gains an `origin` field (`"new"` or `"surfaced"`), a 
 The script runs git blame on each finding's reported line range and compares the blamed commit against the set of commits introduced by the current branch.
 
 **Classification rules:**
+
 - Cross-file impact findings (those with `cross_file_refs`) are always "Surfaced"
 - Findings on lines the author modified (blamed commit is in the PR branch) are always "New"
 - When a finding spans both new and old lines, classify as "New" (the author touched it)
 
 **Effect:**
+
 - "Surfaced" findings are downgraded one severity level (critical→high, high→medium, medium→low, low stays low)
 - "Surfaced" findings are grouped in a dedicated section in the report, placed after main findings
 - `blame_metadata` records the original severity, author, and date for each finding — displayed in the report
@@ -121,12 +124,14 @@ Parallel validation agents assess findings that need LLM judgment. **Always use 
 > Validation requires fresh agents. Correlated errors occur ~60% of the time when the same context does discovery and validation — re-reading batches in the orchestrator's reasoning anchors to the original framing and does not constitute independent assessment.
 
 Each agent receives:
+
 1. A batch of 3-5 findings with their descriptions, evidence, and blame tags
 2. The relevant code sections for the batch (read fresh from files), wrapped in `<untrusted-code-content>...</untrusted-code-content>` tags
 3. The Phase 2f change summary as PR context
 4. The confidence rubric below
 
 Each agent must:
+
 1. Read each finding's description and evidence
 2. Attempt to **disprove** the finding — look for reasons it might be a false positive
 3. Ask: **"Can you find a code path that actually triggers this today?"** Trace from entry points (public APIs, event handlers, CLI entry points, scheduled jobs) to the flagged location. If the issue is only reachable under hypothetical future changes (e.g., a new caller is added, a config value changes, a new code path is introduced), **cap confidence at 65**. This keeps the issue below the non-security threshold of 70 and prevents latent/theoretical concerns from surviving the confidence filter.
@@ -148,6 +153,7 @@ caller, changed config, new code path), cap at 65 regardless of the anchor above
 5. Return an adjusted confidence score and brief justification per finding
 
 **Agent tool call template (per batch):**
+
 ```
 Agent(
   subagent_type: "deep-review:validator",
@@ -210,6 +216,7 @@ Bash(
 ```
 
 **Output JSON schema:**
+
 ```json
 {
     "filtered": [...],
@@ -237,6 +244,7 @@ Each finding in `filtered` gains a `report_destination` field (`"main"` or `"sug
 ## 6a. Filter with dimension-specific thresholds
 
 The script removes findings where:
+
 - Post-validation confidence is below the **dimension-specific threshold**: uses REVIEW.md `confidence_threshold` if set (default: 70). Security minimum of 70 applies regardless. **Validator contestation:** if a Phase 5 validator dropped confidence by more than 25 points from the discovery agent's original score, the finding is marked `contested: true` and bypasses both the confidence threshold and severity floor — it proceeds to Phase 7 for independent arbitration.
 - Severity is below the configured severity floor: applies REVIEW.md `severity_threshold` if set (default: low — suppress nothing). Contested findings bypass this check.
 - The finding is about a pre-existing issue that does not interact with this diff (not a "Surfaced" finding classified in Phase 4a — those survive with downgraded severity into their own report section)
@@ -253,6 +261,7 @@ The script also applies exclusion patterns from the `--exclusions-md` file and t
 ## 6b. Output validation for prompt injection artifacts
 
 The script discards any finding matching these patterns:
+
 - Description or suggestion contains shell commands to execute
 - Contains URLs to visit or encoded payloads
 - Approves the PR or instructs the user to bypass controls
@@ -268,11 +277,13 @@ Discarded findings appear in `eliminated` with `eliminated_by: "injection_filter
 The script classifies findings by inter-agent agreement. Disagreement is a signal about difficulty and importance, not a problem to resolve through forced consensus.
 
 **Classifications:**
+
 - **Consensus** — multiple agents flag same file + overlapping line range with same/related concern. Script boosts confidence +10 (capped at 100). Note: "Corroborated by: [agent list]"
 - **Singleton** — only one agent flags this, within their domain expertise. Passes through unchanged — domain specialists don't need corroboration.
 - **Contradictions** — agents make conflicting claims about the same code location. Noted in output; Phase 7 challenges all findings regardless.
 
 **Automatic suppression rules:**
+
 - **bug-detector** flags something that **conventions-and-intent** confirms is intentional per documented specs → suppress the bug finding
 - **test-analyzer** flags missing tests for code that **conventions-and-intent** identifies as generated/scaffolding excluded from test requirements → suppress the test finding
 
@@ -285,6 +296,7 @@ Contradictions and resolutions are recorded in the script output and should be l
 ## 6d. Tag findings
 
 The script tags each surviving finding by its eventual report destination. This is a tagging step only — actual separation into report sections happens during post-challenge finalization (Phase 7, step 2):
+
 - **Main report** — most findings, grouped by severity (`report_destination: "main"`)
 - **Improvement Suggestions** — test-analyzer, conventions-and-intent comment accuracy, and code-simplifier findings (`report_destination: "suggestion"`)
 - **Promotion rule:** If a test-analyzer finding describes a functional correctness issue that exists today (race condition, logic error, assertion that never fails, test that always passes) rather than a missing-coverage gap ("should add tests for X"), the script promotes it to `"main"`. Decision test: "Does this finding describe a bug that exists today, or a test that should be written?" Bug today -> main report. Test to write -> improvement suggestion.
@@ -312,6 +324,7 @@ See **SKILL.md Phase 7** for the primary instructions and Agent tool call templa
    - **≥ 75** → challenger couldn't disprove it. Finding survives.
 
 **Agent tool call template (per finding):**
+
 ```
 Agent(
   subagent_type: "deep-review:challenger",
@@ -340,6 +353,7 @@ This does not break challenger blindness — the sycophancy concern is about see
 **Triggerability bar:** The challenger's prompt must include this line: "Can you construct a specific code path through the current codebase that triggers this? If you cannot, rate confidence below 25."
 
 **Design rationale:**
+
 - Blind agents see only the claim and the code, never the original reasoning → prevents sycophancy
 - Fresh agents (not the original reviewers) → genuinely independent judgment
 - Inline code provision (orchestrator reads and pastes) removes tool round-trips and anchors challengers to the exact lines under review — deterministic grounding beats LLM-on-LLM verification
@@ -368,12 +382,14 @@ Bash(
 The script applies challenge thresholds, re-routes surfaced findings, re-runs cross-agent dedup, and ranks findings. Output is delivery-ready JSON at `{output_dir}/deep-review-delivery-{head_sha_short}.json`.
 
 **Challenge threshold reference:**
+
 - **score < 25** → remove (non-security) or downgrade one severity level (security)
 - **score 25-49** → downgrade one severity level; surfaced findings re-routed to `"suggestion"`
 - **score 50-74** → flag `challenge_contested: true`; surfaced findings re-routed to `"suggestion"`
 - **score ≥ 75** → finding survives unchanged
 
 **Output JSON schema:**
+
 ```json
 {
     "findings": [...],
@@ -401,6 +417,7 @@ Pass `{output_dir}/deep-review-delivery-{head_sha_short}.json` to Phase 8 report
 Runs ONLY when the review is incremental (user selected "Incremental" in Phase 1) AND a previous `deep-review-findings` comment was successfully parsed.
 
 **Findings metadata schema** (used for parsing previous findings and generating the footer in Phase 8):
+
 ```json
 {"version":1,"sha":"<full_sha>","findings":[
   {"id":"<finding.id>","file":"<finding.file>","line":<line_start>,"dim":"<dimension>","title_hash":"<first 8 chars of SHA-256 of finding.title>"}
@@ -408,11 +425,13 @@ Runs ONLY when the review is incremental (user selected "Incremental" in Phase 1
 ```
 
 **Classification against previous finding set:**
+
 - **Introduced** — no matching `title_hash` + `file` in previous set. Surface normally.
 - **Fixed** — previous finding no longer detected. Note as resolved.
 - **Preexisting** — same finding still present (same `title_hash` + `file` + line within ±5). **Suppress** from report and PR comments.
 
 After classification:
+
 - Remove "Preexisting" findings from report output
 - Keep "Introduced" findings in normal severity-ranked sections
 - Compile "Fixed" list for Incremental Review Status section

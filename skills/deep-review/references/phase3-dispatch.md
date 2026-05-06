@@ -34,6 +34,7 @@ All agents can still **pull** additional context — scoping controls what they 
 **Raw diff rule.** The context file contains raw diff lines. The orchestrator must never substitute its own summary for actual changed content. Evidence destroyed during summarization cannot be recovered by agents.
 
 **Context scoping tiers:**
+
 - **HIGH + MEDIUM files:** full raw diff available to all applicable agents
 - **LOW files (after content-change promotion):** compact raw diff (changed lines only, no context lines) included in the context file as a clearly-delimited "Sweep appendix" section
 
@@ -79,6 +80,7 @@ Background agents cannot write files, lose output silently, and cause session ha
 Dispatch all applicable agents in a **single message**. Each prompt contains only the context file path and findings file path — all shared context lives in the file. Use **absolute paths** (agents may not share the orchestrator's working directory).
 
 **Template (same structure for every agent):**
+
 ```
 Agent(
   subagent_type: "deep-review:{agent-name}",

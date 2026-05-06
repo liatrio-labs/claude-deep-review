@@ -80,6 +80,7 @@ chat
 ### Focus
 
 Controls which review dimensions run. Valid values map to agents:
+
 - `bugs` — Bug detection and error handling (bug-detector agent)
 - `security` — Security vulnerability scanning (security-reviewer agent)
 - `cross-file-impact` — Cross-file impact analysis (cross-file-impact agent)
@@ -95,6 +96,7 @@ When specified, ONLY the listed dimensions run — this is useful for projects t
 ### Skip
 
 Glob patterns for files to exclude from review. Common uses:
+
 - Generated code that shouldn't be manually modified
 - Vendored dependencies
 - Build output
@@ -108,6 +110,7 @@ Glob patterns for files to exclude from review. Common uses:
 Custom natural-language rules that all review agents should check in addition to their built-in logic. These are especially useful for project-specific conventions that aren't captured in CLAUDE.md.
 
 Rules should be:
+
 - Specific and actionable (not vague guidelines)
 - Objectively verifiable (an agent can determine compliance)
 - Focused on the code being reviewed (not process/workflow rules)
@@ -115,6 +118,7 @@ Rules should be:
 ### Severity Threshold
 
 The minimum severity level to include in the report:
+
 - `critical` — Only blocking issues
 - `high` — Critical + high priority
 - `medium` — Critical + high + medium (default for most projects)
@@ -140,6 +144,7 @@ simplification: 80
 ```
 
 Rules for per-dimension thresholds:
+
 - Dimension names must match Focus section values: `bugs`, `security`, `cross-file-impact`, `tests`, `conventions`, `types`, `simplification`
 - If a plain number is provided (current format), it applies as the default for all non-security dimensions
 - If per-dimension values are provided, they override the plain number default for that dimension
@@ -174,12 +179,14 @@ chat,pr_comments
 ### Ignore
 
 Patterns for suppressing known false positives. Format is `dimension:"pattern"` where:
+
 - `dimension` is one of the review dimension names (or `*` for all)
 - `pattern` is a substring to match against finding titles/descriptions
 
 This is useful when a project has intentional patterns that agents consistently flag incorrectly.
 
 **Date-stamp ignore patterns** for long-term maintenance. Add a comment with the date and reason above each pattern so quarterly audits can identify stale suppressions:
+
 ```
 ## Ignore
 # 2026-03-25: EF Core migrations are generated, naming conventions don't apply
@@ -232,10 +239,12 @@ repo/
 ```
 
 For a file in `api/`:
+
 - confidence_threshold = **70** (overridden by api/REVIEW.md)
 - rules = **[rule-A, rule-B, rule-C]** (accumulated)
 
 For a file in `legacy/`:
+
 - confidence_threshold = **70** (root applies)
 - rules = **[rule-A, rule-B]** (root only)
 
@@ -248,6 +257,7 @@ REVIEW.md files are discovered lazily, following the same pattern as CLAUDE.md �
 Find all CLAUDE.md locations, check each for a matching REVIEW.md:
 
 - **No REVIEW.md anywhere:**
+
   ```
   AskUserQuestion(
     questions: [{
@@ -261,8 +271,10 @@ Find all CLAUDE.md locations, check each for a matching REVIEW.md:
     }]
   )
   ```
+
   If yes, use the scaffolding template from the Templates section below.
 - **Root exists, subdirectory CLAUDE.md without matching REVIEW.md:**
+
   ```
   AskUserQuestion(
     questions: [{
@@ -276,6 +288,7 @@ Find all CLAUDE.md locations, check each for a matching REVIEW.md:
     }]
   )
   ```
+
 - **All locations covered** → proceed
 
 ---
@@ -293,6 +306,7 @@ When helping users add rules to REVIEW.md (during scaffolding or when updating),
 7. **Use severity prefixes sparingly.** `CRITICAL:` for rules that are never acceptable to violate (3-4 per file max). Overuse makes the emphasis invisible.
 
 **Effective rules:**
+
 ```
 - CRITICAL: Never commit secrets, API keys, or connection strings in source
   files. Use environment variables or secret managers.
@@ -303,6 +317,7 @@ When helping users add rules to REVIEW.md (during scaffolding or when updating),
 ```
 
 **Ineffective rules:**
+
 ```
 - Write clean code
 - Follow best practices

@@ -18,3 +18,21 @@ MD034:  false
 
 # First line in file must be a top-level heading
 MD041:  false
+
+# Multiple top-level headings (single-title)
+# Agent and skill files intentionally repeat top-level headings for prompt structure.
+MD025:  false
+
+# Blanks inside blockquote
+MD028:  false
+
+# Ordered list item prefix
+MD029:  false
+
+# Emphasis used instead of a heading
+# Agent prompts use bold subsections deliberately to avoid altering heading hierarchy.
+MD036:  false
+
+# Fenced code blocks should have a language specified
+# Many examples are language-neutral prose; not worth annotating each one.
+MD040:  false

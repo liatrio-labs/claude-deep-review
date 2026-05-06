@@ -1,5 +1,8 @@
 # claude-deep-review
 
+[![CI](https://github.com/liatrio-labs/claude-deep-review/actions/workflows/ci.yml/badge.svg)](https://github.com/liatrio-labs/claude-deep-review/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 A research-backed code review plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that orchestrates parallel concern-specialized agents, cross-validates findings with deterministic verification, and produces unified review reports.
 
 ## What it does

@@ -5,6 +5,7 @@
 > **Duplication contract.** Each of the 7 discovery agents carries its own adapted copy of this list for self-containment — if a file read fails during a review, the agent still has the exclusions inline. Do not refactor the agent copies into a shared read.
 >
 > **When updating:** change this file first, then propagate the changes to all 7 agent copies:
+>
 > 1. `agents/bug-detector.md`
 > 2. `agents/security-reviewer.md`
 > 3. `agents/cross-file-impact.md`
@@ -26,6 +27,7 @@ A finding that matches any category below MUST be excluded. The goal is zero fal
 Do not flag problems that already existed in the codebase before this change. The review scope is limited to what the author changed or directly affected.
 
 **Examples:**
+
 - A function had no error handling before this PR, and the PR doesn't touch that function. Do not flag it.
 - A SQL query was already vulnerable to injection in an unmodified file. Do not flag it.
 
@@ -36,6 +38,7 @@ Do not flag problems that already existed in the codebase before this change. Th
 Unless the author's changes in another file create a cross-file impact (e.g., changing a function signature that breaks a caller), do not flag issues on lines the author did not touch.
 
 **Examples:**
+
 - A variable is unused on line 12, but the author only changed lines 45-50. Do not flag the unused variable.
 - The author changed a shared utility's return type, and a caller in another file now receives the wrong type. DO flag this — it is cross-file impact caused by the diff.
 
@@ -46,6 +49,7 @@ Unless the author's changes in another file create a cross-file impact (e.g., ch
 These tools run in CI and will catch the problem automatically. Flagging them adds noise without value.
 
 **Examples:**
+
 - Unused imports, missing semicolons, incorrect indentation, trailing whitespace.
 - TypeScript type errors that `tsc --noEmit` would report (e.g., `Type 'string' is not assignable to type 'number'`).
 
@@ -56,6 +60,7 @@ These tools run in CI and will catch the problem automatically. Flagging them ad
 If a reasonable senior engineer doing a thorough code review would not comment on it, neither should the review.
 
 **Examples:**
+
 - Preferring `const` over `let` when the variable is never reassigned (this is a linter rule, not a review comment).
 - Suggesting a different variable name that is equally clear (e.g., `data` vs `result` vs `response`).
 
@@ -66,6 +71,7 @@ If a reasonable senior engineer doing a thorough code review would not comment o
 Style preferences, naming conventions, and structural opinions should only be flagged if the project's CLAUDE.md (or equivalent configuration) explicitly requires them.
 
 **Examples:**
+
 - "This function is too long, consider splitting it" — unless CLAUDE.md sets a max function length.
 - "Consider using early returns instead of nested if/else" — unless CLAUDE.md mandates this style.
 
@@ -76,6 +82,7 @@ Style preferences, naming conventions, and structural opinions should only be fl
 If the author (or a previous author) has added a suppression comment, respect the intent. The suppression itself may be worth discussing, but the underlying issue should not be flagged as a finding.
 
 **Examples:**
+
 - `// eslint-disable-next-line no-unused-vars` — do not flag the unused variable.
 - `# noinspection PyUnresolvedReferences` or `@SuppressWarnings("unchecked")` — do not flag the suppressed warning.
 
@@ -86,6 +93,7 @@ If the author (or a previous author) has added a suppression comment, respect th
 When the diff clearly and deliberately changes behavior (e.g., altering a default, removing a feature flag, changing a threshold), do not flag the behavior change itself as a bug. Only flag it if the new behavior is provably incorrect or dangerous.
 
 **Examples:**
+
 - The PR changes a retry count from 3 to 5. Do not flag "retry count changed" — it is obviously intentional.
 - The PR removes a deprecated API endpoint and updates all callers. Do not flag "endpoint no longer exists."
 
@@ -96,6 +104,7 @@ When the diff clearly and deliberately changes behavior (e.g., altering a defaul
 If CLAUDE.md says "all functions must have JSDoc" but a file has `/* @no-jsdoc */` or an equivalent opt-out mechanism, do not flag missing JSDoc in that file.
 
 **Examples:**
+
 - A generated protobuf file that opts out of lint rules via a file-level directive.
 - A migration file that opts out of naming conventions because it must match a database schema.
 
@@ -106,6 +115,7 @@ If CLAUDE.md says "all functions must have JSDoc" but a file has `/* @no-jsdoc *
 Test files frequently use patterns that would be problematic in production code. These are expected and should not be flagged.
 
 **Examples:**
+
 - Hardcoded credentials like `password: "test123"` or `apiKey: "sk-test-xxx"` in test fixtures.
 - Direct HTTP calls to `localhost:3000` in integration test setup, or mocked network responses with static data.
 
@@ -116,6 +126,7 @@ Test files frequently use patterns that would be problematic in production code.
 If the entire PR (or a file within the PR) consists solely of documentation changes (README, JSDoc, comments, markdown files), do not flag it for code-level issues.
 
 **Examples:**
+
 - A PR that only updates `README.md` with new setup instructions. Do not flag "no test coverage."
 - Fixing a typo in a code comment. Do not flag code quality or correctness issues on the surrounding unchanged code.
 
@@ -126,6 +137,7 @@ If the entire PR (or a file within the PR) consists solely of documentation chan
 Files that are generated by tooling or vendored from third-party sources should not be reviewed for code quality, style, or correctness. These files are not authored by the team.
 
 **Examples:**
+
 - `generated/graphql-types.ts`, `proto/*.pb.go`, `vendor/` directories.
 - `package-lock.json`, `yarn.lock`, `Cargo.lock` — these are machine-generated and should not be reviewed for code patterns.
 
@@ -136,6 +148,7 @@ Files that are generated by tooling or vendored from third-party sources should 
 Lockfile diffs are mechanical and reviewing individual line changes in them is not useful. Only flag lockfile changes if a known-vulnerable package version is being introduced (and even then, this is better caught by `npm audit` or equivalent tooling).
 
 **Examples:**
+
 - 500 lines changed in `package-lock.json` because a dependency was added. Do not flag individual sub-dependency version bumps.
 - `Gemfile.lock` updated after `bundle update`. Do not flag the resolved version changes.
 
@@ -146,6 +159,7 @@ Lockfile diffs are mechanical and reviewing individual line changes in them is n
 If a finding describes a problem that cannot be reached by any current code path — no existing caller, no reachable entry point, no current configuration that exercises it — it is a latent concern, not an actionable finding. Only flag issues that are reachable today.
 
 **Examples:**
+
 - A contract violation in an internal function that has no current caller anywhere in the codebase. The function exists but nothing calls it yet.
 - An error path (e.g., empty list panic, division by zero) that requires an input combination that no current caller ever produces.
 - A missing validation in a helper that is only used via a wrapper that already enforces the invariant.

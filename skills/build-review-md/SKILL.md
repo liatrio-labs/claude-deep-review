@@ -17,6 +17,7 @@ Guided wizard that creates a REVIEW.md configuration tailored to the repo's actu
 Scan the repository to understand what you are configuring. Do this silently — do not ask the user to describe their stack.
 
 **Languages** — scan file extensions:
+
 - `.ts`, `.tsx` → TypeScript/React
 - `.js`, `.jsx` → JavaScript
 - `.py` → Python
@@ -28,6 +29,7 @@ Scan the repository to understand what you are configuring. Do this silently —
 - `.php` → PHP
 
 **Frameworks and runtimes** — check for manifest files:
+
 - `package.json` → Node/JS/TS ecosystem; read `dependencies` and `devDependencies` for React, Next.js, Vue, Express, NestJS, RTK Query, Zod, Vitest, Jest
 - `requirements.txt` / `pyproject.toml` / `setup.py` → Python; check for Django, FastAPI, SQLAlchemy, pytest
 - `Cargo.toml` → Rust; check for tokio, axum, sqlx
@@ -160,22 +162,26 @@ If no → the rule belongs in the root REVIEW.md.
 **Common subdirectory rules by stack:**
 
 *TypeScript/React frontend:*
+
 - TypeScript strict mode enforcement (no `any`, no `@ts-ignore` without comment)
 - React hooks rules (no conditional hooks, useEffect cleanup, dependency arrays)
 - RTK Query cache invalidation (invalidatesTags on mutations)
 - Zod schema validation at API boundaries (.safeParse() not type assertions)
 
 *.NET/C# backend:*
+
 - Async/await patterns (no .Result/.Wait(), async void except event handlers, CancellationToken)
 - EF Core patterns (N+1 detection, AsNoTracking for reads, scoped DbContext)
 - DI lifetime correctness (no scoped in singleton)
 
 *Python:*
+
 - Type hints required on public functions
 - SQLAlchemy session management (no session reuse across requests)
 - Async correctness (no blocking calls in async functions)
 
 *Go:*
+
 - Error wrapping with context (errors.Wrap, not bare return err)
 - Context propagation (first argument, no context.Background() in handlers)
 - Goroutine leak prevention (always close channels, cancel contexts)

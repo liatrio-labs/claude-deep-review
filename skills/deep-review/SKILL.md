@@ -228,6 +228,7 @@ Read `references/validation-pipeline.md` for detailed filter/reconciliation rule
 Challenge **every finding** that survived Phase 6 (up to 50). Spawn all in parallel in a single message. Use Sonnet in Optimized mode, Opus in Frontier mode. If >50 findings, challenge top 50 by severity then confidence; flag rest as "not blind-challenged" in methodology.
 
 **Agent tool call template (per finding):**
+
 ```
 Agent(
   subagent_type: "deep-review:challenger",

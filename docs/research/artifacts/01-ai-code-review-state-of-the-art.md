@@ -105,6 +105,7 @@ Drawing from all research findings, the optimal architecture for a local Claude 
 **Configuration via REVIEW.md.** Support a hierarchical `REVIEW.md` configuration file (repository root, with directory-level overrides) that specifies: review focus areas, files/patterns to skip, custom rules in natural language, severity thresholds, and which review dimensions to enable.
 
 **Concrete tool chain for each agent:**
+
 - Tree-sitter (via `mcp-server-tree-sitter` or direct integration) for AST parsing and symbol extraction
 - LSP for cross-file navigation (go-to-definition, find-references)
 - `git diff`, `git log`, `git blame` via bash for change and history context

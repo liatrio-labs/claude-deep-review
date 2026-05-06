@@ -91,7 +91,7 @@ This pattern draws from AgentSpec (ICSE 2026), which intercepts LLM agent execut
 
 - **Few-shot example** of the exact tool call format placed immediately before the step 4f instruction
 - **Position the instruction** at the very start of the system prompt with a repeat at the end
-- **Fill-in-the-blank template**: "Call `spawn_blind_challenger` with findings=[___] and challenger_count=[___]"
+- **Fill-in-the-blank template**: "Call `spawn_blind_challenger` with findings=[***] and challenger_count=[***]"
 - **Explicit cost bound**: "This step costs ~$0.10 total. You are authorized and required to spend this."
 - **Self-verification checkpoint**: "Before proceeding past 4f, confirm: did you emit tool_use blocks for spawn_blind_challenger? If not, do so now."
 

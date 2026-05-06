@@ -34,6 +34,7 @@ Regular single quotes (`'...'`) and double quotes (`"..."`) produce AST node typ
 Issue #43713 provides a precise behavior matrix tested on **v2.1.92 (macOS, Apple Silicon)**. The results reveal inconsistencies that stem from incomplete AST node coverage:
 
 **Auto-approved (allowlisted node types)**:
+
 - Simple commands: `ls /tmp`, `cat /etc/hosts`
 - Semicolons, pipes, logical operators: `date; uptime | tail -1`
 - Control flow: `if true; then echo y; fi`

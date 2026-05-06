@@ -21,6 +21,7 @@ Always include rationale. DataCamp's CLAUDE.md guide captures why: "Never force 
 Here are concrete examples of well-written versus poorly-written rules:
 
 **Effective rules:**
+
 ```
 - All async methods must accept CancellationToken as the last parameter.
   Omitting tokens prevents graceful shutdown and causes resource leaks
@@ -39,6 +40,7 @@ Here are concrete examples of well-written versus poorly-written rules:
 ```
 
 **Ineffective rules:**
+
 ```
 - Write clean code
 - Follow best practices
@@ -93,6 +95,7 @@ The hierarchical accumulation model (settings override, rules accumulate) create
 Based on the section ordering that CodeRabbit, Greptile, and Cursor configurations converge on, organize each file to match how the review system processes it: settings first (processed as overrides), then rules (accumulated), then exclusions (accumulated).
 
 **Root REVIEW.md template:**
+
 ```markdown
 ## Severity Threshold
 low
@@ -165,6 +168,7 @@ conventions:"commit message format" for merge commits
 ```
 
 **backend/REVIEW.md template:**
+
 ```markdown
 ## Model Tier
 frontier
@@ -227,6 +231,7 @@ types:"nullable reference" for test assertion helpers
 ```
 
 **frontend/REVIEW.md template:**
+
 ```markdown
 ## Model Tier
 frontier
@@ -296,6 +301,7 @@ conventions:"file length" for RTK Query API slice definitions
 The skip pattern strategy follows a clear principle: **skip files where AI review adds zero value; use focused rules (not skipping) for files that need partial review.**
 
 **Always skip** (generated, binary, or lock files where review is meaningless):
+
 - Build outputs: `**/bin/**`, `**/obj/**`, `**/dist/**`, `**/.next/**`
 - Dependencies: `**/node_modules/**`
 - Lock files: `package-lock.json`, `pnpm-lock.yaml`, `packages.lock.json`
@@ -334,9 +340,10 @@ Severity threshold at **low** (report everything) is useful during the calibrati
 The `dimension:"pattern"` format requires balancing specificity with maintainability. Too specific ("bugs:null reference in UserService.GetCoach line 47") and the pattern breaks when code moves. Too broad ("bugs:null reference") and you suppress genuine findings.
 
 **Target the middle ground**: describe the pattern category, not the instance. Good examples:
+
 ```
 conventions:"file naming" for EF Core migration files
-types:"nullable reference" for test assertion helpers  
+types:"nullable reference" for test assertion helpers
 simplification:"optional chaining" for Zod schema definitions
 security:"hardcoded string" for test fixture data
 ```
@@ -344,6 +351,7 @@ security:"hardcoded string" for test fixture data
 **Pre-populate ignore patterns for known framework idioms.** Every .NET project generates false positives on EF Core migration file naming. Every React project triggers simplification suggestions on Zod's fluent API chains. Add these on day one rather than waiting for developers to encounter and dismiss them repeatedly. The pattern here mirrors CodeRabbit's "Learnings" system — once a false positive is identified, suppress it permanently so the team never wastes time on it again.
 
 **Date-stamped comments are essential for long-term maintenance:**
+
 ```
 ## Ignore
 # 2026-03-25: EF Core migrations are generated, naming conventions don't apply

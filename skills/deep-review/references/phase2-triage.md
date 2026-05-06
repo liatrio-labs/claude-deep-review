@@ -16,6 +16,7 @@ Full sub-steps 2a–2l, Agent templates, and detection logic for Phase 2: Target
 ## 2a. Detect VCS Platform
 
 Auto-detect from `git remote get-url origin`:
+
 - GitHub → `gh` CLI, "PR"
 - GitLab (including self-hosted) → `glab` CLI, "MR"
 
@@ -28,17 +29,21 @@ If detection fails, ask the user.
 Before running any diff commands, confirm the local working tree matches the review target. Use the `pr_number` resolved in Phase 1 — never extract PR numbers from branch names (branch names may contain upstream PR numbers that differ from the PR number in the current repo).
 
 **1. Resolve the target's head SHA:**
+
 - **PR/MR mode (`pr_number` set):** `gh pr view {pr_number} --json headRefOid --jq '.headRefOid'` (GitHub) / `glab mr view {pr_number} --output json | jq '.sha'` (GitLab)
 - **Branch comparison:** `git rev-parse <branch>`
 - **Local changes:** HEAD — no-op, already on correct state
 
 **2. Compare against current HEAD:**
+
 ```
 git rev-parse HEAD
 ```
+
 If the SHA matches → proceed to 2c.
 
 **3. If mismatch → checkout:**
+
 | Target type | Command |
 |---|---|
 | PR/MR number or URL | `gh pr checkout <number>` (GitHub) / `glab mr checkout <number>` (GitLab) |
@@ -46,10 +51,12 @@ If the SHA matches → proceed to 2c.
 | Local changes | no-op |
 
 **4. If checkout fails → STOP immediately:**
+
 ```
 Unable to checkout [branch/PR]. The review requires the target code to be accessible locally.
 You can checkout the branch manually and re-run the review.
 ```
+
 No fallback or workaround — a silently wrong working tree produces unreliable review results.
 
 ---
@@ -59,21 +66,27 @@ No fallback or workaround — a silently wrong working tree produces unreliable 
 Now that the working tree reflects the review target, compute the short SHA and perform housekeeping. These steps run after checkout so the SHA reflects the actual PR HEAD and the gitignore addition is not stashed by `gh pr checkout`.
 
 **1. Resolve head SHA:**
+
 ```bash
 Bash(command="git rev-parse --short=8 HEAD")  # Store as `head_sha_short`
 ```
+
 Computed after checkout so the SHA reflects the actual PR HEAD, not whatever branch was checked out before.
 
 **2. Ensure `{output_dir}` is gitignored** (skip if using env var override):
+
 ```bash
 Bash(command="git check-ignore -q .deep-review 2>/dev/null || echo '/.deep-review/' >> .gitignore")
 ```
+
 Added after checkout to avoid stash/pop loss from `gh pr checkout` — if this ran before checkout, the gitignore modification would be stashed and potentially lost.
 
 **3. Truncate stale files** from prior sessions with the same SHA:
+
 ```bash
 Bash(command="python3 -c \"import glob; [open(f,'w').close() for f in glob.glob('{output_dir}/deep-review-*-{head_sha_short}.*')]\"")
 ```
+
 Prevents echo-append (`>>`) from accumulating findings across sessions. Without truncation, re-running a review on the same SHA would append duplicate findings to existing NDJSON files.
 
 ---
@@ -96,6 +109,7 @@ gh pr diff {pr_number} > "{output_dir}/deep-review-diff-{head_sha_short}.patch"
 ```
 
 Validate the saved diff before relying on it:
+
 - Non-empty (file size > 0)
 - Starts with `diff --git` (confirms it is a valid unified diff, not an error message)
 
@@ -114,6 +128,7 @@ Check for `docs/`, `specs/`, `research/` directories and `REVIEW.md`, `CLAUDE.md
 **Tool instructions for file discovery:**
 
 Use **Glob** to find all CLAUDE.md, REVIEW.md, AGENTS.md, and QODO.md files:
+
 ```
 Glob(pattern: "**/CLAUDE.md")
 Glob(pattern: "**/REVIEW.md")
@@ -130,11 +145,13 @@ Complete this check before proceeding to 2e. REVIEW.md settings cascade to all t
 Find all CLAUDE.md locations, check each for a matching REVIEW.md:
 
 - **No REVIEW.md anywhere:**
+
   ```
   No REVIEW.md found. For a guided setup, run build-review-md first, then restart the review. Or continue without one.
   ```
 
 - **Root exists but subdirectory CLAUDE.md has no matching REVIEW.md:**
+
   ```
   AskUserQuestion(
     questions: [{
@@ -189,6 +206,7 @@ In **Frontier mode**, use an **Opus agent** instead of Sonnet for the summarizer
 **Critical framing rule:** Frame all statements as claims: "The PR claims to reorganize X by extracting from A into B." Never use "clean", "correct", "safe", "straightforward", "simple", "trivial", or "verbatim" — these pre-judge quality. The summary must never conclude that a refactoring is correct.
 
 **Agent tool call template:**
+
 ```
 Agent(
   subagent_type: "deep-review:change-summarizer",
@@ -215,12 +233,14 @@ For each changed production file, find test files by convention (`Tests`, `.test
 **Tool instructions:**
 
 Use **Glob** to find test files. Pattern examples:
+
 - `**/*.test.js`, `**/*.test.ts` (Jest/Vitest style)
 - `**/*.spec.js`, `**/*.spec.ts` (Jasmine/Mocha style)
 - `**/tests/**/*.py`, `**/__tests__/**/*.py` (Python)
 - `**/*_test.go`, `**/*_test.rs` (Go/Rust)
 
 Example:
+
 ```
 Glob(pattern: "**/*.test.{js,ts,py}")
 Glob(pattern: "**/__tests__/**/*")
@@ -238,6 +258,7 @@ If `docs/`, `specs/`, `research/` exist, read relevant files. Send only to conve
 **Tool instructions for file discovery:**
 
 Use **Glob** to find documentation and specification files:
+
 ```
 Glob(pattern: "docs/**/*.md")
 Glob(pattern: "specs/**/*.md")
@@ -251,6 +272,7 @@ Then use **Read** to load relevant files for each changed file's directory. Neve
 ## 2i. History Context Preprocessing
 
 **Deterministic preprocessing, not an LLM agent.** For each changed file:
+
 1. `git log --oneline --max-count=50 -- <file>` for recent change history
 2. `git blame` on changed line ranges (used by verify_findings.py in Phase 4)
 
@@ -263,6 +285,7 @@ Distribute: bug-detector gets history context; conventions-and-intent gets patte
 Dispatch parallel **Sonnet agents** (one per file) for 2-3 sentence summaries. For large PRs, launch 2f and 2j agents **in the same message with multiple Agent tool calls** for true parallel execution. Concatenate into a summary-of-summaries for architectural awareness.
 
 **Agent tool call template (repeat per changed file):**
+
 ```
 Agent(
   subagent_type: "deep-review:change-summarizer",
@@ -289,11 +312,13 @@ Scan for AI co-author trailers, attribution comments, AI tool metadata. **Elevat
 **Tool instructions:**
 
 Use **Grep** to search for AI co-author indicators in changed files:
+
 - Git trailers: `Co-Authored-By`, `Co-authored-by`, `Copilot-By`
 - Comments: patterns like `AI-generated`, `generated by`, `GPT`, `Claude`, `Copilot`, `ChatGPT`
 - Metadata: language-specific markers (e.g., `<!-- AI generated -->`, `# AI generated`)
 
 Example:
+
 ```
 Grep(pattern: "Co-[Aa]uthored-[Bb]y|Copilot-By", type: "text", glob: "**/*.py")
 Grep(pattern: "AI-generated|generated by (GPT|Claude|Copilot|ChatGPT)", glob: "**/*.{js,ts,py}")

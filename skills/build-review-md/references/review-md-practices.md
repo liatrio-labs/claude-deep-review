@@ -17,6 +17,7 @@ the reviewer can evaluate without judgment. False-positive rates are low because
 is unambiguous.
 
 Examples:
+
 ```
 - CRITICAL: Never commit secrets, API keys, or connection strings in source files.
   Use environment variables or secret managers.
@@ -33,6 +34,7 @@ outcomes but allow judgment. Use preference language: prefer, consider, flag whe
 acknowledges that context determines the right answer.
 
 Examples:
+
 ```
 - Prefer composition over inheritance. Deep hierarchies make behavior unpredictable —
   flag more than 2 levels unless there is an explicit abstraction reason.
@@ -55,6 +57,7 @@ unrecoverable for collaborators") gives the reviewer enough context to generaliz
 edge cases.
 
 **Rule length sweet spot:**
+
 - One sentence: acceptable only for truly unambiguous prescriptive rules
 - Two sentences (rule + rationale): recommended for most rules
 - Three sentences: allowed for contextual rules that need an escape hatch
@@ -97,6 +100,7 @@ Add this comment block above the thresholds in the generated REVIEW.md:
 ## Phased Rollout Guidance
 
 **Day one (weeks 1–2):** Start narrow.
+
 - Root: 8–10 rules — security (3), architecture (2), git conventions (2), error handling (2)
 - Backend subdirectory: 5–7 rules — async patterns (3), data access (2), DI lifetime (1)
 - Frontend subdirectory: 5–7 rules — TypeScript strictness (2), framework hooks (2), data fetching (2)
@@ -104,12 +108,14 @@ Add this comment block above the thresholds in the generated REVIEW.md:
 - Skip patterns: full set from day one
 
 **Week 4:** Expand only if acceptance rate supports it.
+
 - Lower severity to **low** if medium-severity acceptance rate exceeds 60%
 - Lower confidence to **70** (default)
 - Add testing convention rules
 - Add validation library rules (Zod for TypeScript, Pydantic for Python)
 
 **Month 3+:** Add based on actual incidents.
+
 - Performance-specific rules (N+1, unnecessary re-renders)
 - Cross-file impact rules for API contract changes
 - Backwards compatibility rules as APIs stabilize
@@ -157,6 +163,7 @@ Run this audit when acceptance rate drops below 50%, or at minimum every quarter
 ### TypeScript / React
 
 Root `REVIEW.md`:
+
 ```markdown
 <!-- Week 1-2: confidence 85, severity medium. Lower after reviewing acceptance rates. -->
 
@@ -210,6 +217,7 @@ yarn.lock
 ```
 
 Frontend subdirectory `src/REVIEW.md` (or `frontend/REVIEW.md`):
+
 ```markdown
 ## Model Tier
 frontier
@@ -253,6 +261,7 @@ conventions:"file length" for RTK Query API slice definitions
 ### Python / Django
 
 Root `REVIEW.md`:
+
 ```markdown
 <!-- Week 1-2: confidence 85, severity medium. Lower after reviewing acceptance rates. -->
 
@@ -305,6 +314,7 @@ frontier
 ```
 
 Backend subdirectory `backend/REVIEW.md`:
+
 ```markdown
 ## Model Tier
 frontier
@@ -351,6 +361,7 @@ types:"missing return type" for Django view functions using class-based views
 ### Go
 
 Root `REVIEW.md`:
+
 ```markdown
 <!-- Week 1-2: confidence 85, severity medium. Lower after reviewing acceptance rates. -->
 
@@ -417,6 +428,7 @@ conventions:"error message capitalization" for third-party library error wrappin
 ### Java / Spring
 
 Root `REVIEW.md`:
+
 ```markdown
 <!-- Week 1-2: confidence 85, severity medium. Lower after reviewing acceptance rates. -->
 
@@ -475,6 +487,7 @@ conventions:"wildcard imports" for Spring Boot auto-configuration classes
 ```
 
 Backend subdirectory (e.g., `src/main/java/REVIEW.md`):
+
 ```markdown
 ## Model Tier
 frontier
@@ -521,6 +534,7 @@ types:"unchecked cast" for Spring generic type erasure patterns
 Ignore patterns suppress known false positives. Format: `dimension:"pattern" for context`.
 
 **Target the middle ground** — describe the pattern category, not the instance:
+
 ```
 # Good: category-level suppression
 conventions:"file naming" for EF Core migration files
@@ -534,6 +548,7 @@ bugs:"null reference"
 ```
 
 **Date-stamp every ignore pattern:**
+
 ```markdown
 ## Ignore
 # 2026-03-30: EF Core migrations are generated, naming conventions don't apply
