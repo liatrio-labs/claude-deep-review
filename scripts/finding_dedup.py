@@ -253,7 +253,10 @@ def main(argv: list[str] | None = None) -> int:
         findings = data.get("findings", [])
 
     if args.mode == "id":
-        # Treat all findings as from a single "loaded" agent
+        # In id mode we artificially assign all findings to the ndjson side with priority 2
+        # by passing {"loaded": findings} and {}. This is a deliberate simplification 
+        # where the original ndjson/text distinction (and priority behavior) is 
+        # intentionally collapsed for id-mode deduplication.
         merged, dupes = dedup_by_id({"loaded": findings}, {})
     else:
         merged, dupes = dedup_by_location(findings)

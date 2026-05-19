@@ -140,7 +140,7 @@ class TestDedupByLocation(unittest.TestCase):
     def test_same_location_first_wins_on_tie(self):
         f1 = _f(fid="A", confidence=70, title="first")
         f2 = _f(fid="B", confidence=70, title="second")
-        merged, dupes = dedup_by_location([f1, f2])
+        merged, _dupes = dedup_by_location([f1, f2])
         self.assertEqual(len(merged), 1)
         self.assertEqual(merged[0]["title"], "first")
 
@@ -155,9 +155,9 @@ class TestDedupByLocation(unittest.TestCase):
         # Two agents report the same (file, line, dimension) with different IDs
         f_agent1 = _f(fid="SEC-001", confidence=75)
         f_agent2 = _f(fid="BUG-042", confidence=60)  # same location, different ID
-        merged, dupes = dedup_by_location([f_agent1, f_agent2])
+        merged, _dupes = dedup_by_location([f_agent1, f_agent2])
         self.assertEqual(len(merged), 1)
-        self.assertEqual(merged[0]["fid"] if "fid" in merged[0] else merged[0]["id"], "SEC-001")
+        self.assertEqual(merged[0]["id"], "SEC-001")
 
     def test_empty_list(self):
         merged, dupes = dedup_by_location([])
