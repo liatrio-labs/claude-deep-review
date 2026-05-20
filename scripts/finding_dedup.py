@@ -254,8 +254,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.mode == "id":
         # In id mode we artificially assign all findings to the ndjson side with priority 2
-        # by passing {"loaded": findings} and {}. This is a deliberate simplification 
-        # where the original ndjson/text distinction (and priority behavior) is 
+        # by passing {"loaded": findings} and {}. This is a deliberate simplification
+        # where the original ndjson/text distinction (and priority behavior) is
         # intentionally collapsed for id-mode deduplication.
         merged, dupes = dedup_by_id({"loaded": findings}, {})
     else:
