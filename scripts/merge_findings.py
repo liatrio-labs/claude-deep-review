@@ -268,7 +268,10 @@ def deduplicate(
     Returns:
         (merged_list, duplicates_resolved_count, dropped_no_id_count)
     """
-    from scripts.finding_dedup import dedup_by_id
+    try:
+        from finding_dedup import dedup_by_id  # direct invocation: scripts/ on sys.path
+    except ImportError:
+        from scripts.finding_dedup import dedup_by_id  # module import from repo root
 
     return dedup_by_id(ndjson_findings, text_findings)
 

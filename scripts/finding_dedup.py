@@ -41,6 +41,7 @@ import argparse
 import hashlib
 import json
 import os
+import pathlib
 import sys
 from typing import Optional
 
@@ -150,8 +151,8 @@ def dedup_by_location(
             continue
         if key in seen:
             existing = seen[key]
-            existing_val = existing.get(prefer_field, 0)
-            new_val = finding.get(prefer_field, 0)
+            existing_val = existing.get(prefer_field) or 0
+            new_val = finding.get(prefer_field) or 0
             if (higher_is_better and new_val > existing_val) or (
                 not higher_is_better and new_val < existing_val
             ):
@@ -181,7 +182,7 @@ class FindingStore:
     """
 
     def __init__(self, store_path: str) -> None:
-        self._path = store_path
+        self._path = pathlib.Path(store_path)
         self._data: dict[str, dict] = self._load()
 
     def _load(self) -> dict[str, dict]:
@@ -206,8 +207,9 @@ class FindingStore:
                 "severity": f.get("severity", ""),
             }
         os.makedirs(os.path.dirname(self._path) or ".", exist_ok=True)
-        with open(self._path, "w", encoding="utf-8") as fh:
-            json.dump(self._data, fh, indent=2)
+        tmp = self._path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
+        tmp.rename(self._path)
 
     def filter_new(self, findings: list[dict]) -> tuple[list[dict], int]:
         """Return only findings not seen in a previous session.
