@@ -817,9 +817,12 @@ class TestDeduplicateImportPath(unittest.TestCase):
     def test_deduplicate_works_when_scripts_on_path_only(self):
         import subprocess
 
+        scripts_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "scripts")
+        )
         code = (
             "import json, os, sys\n"
-            "sys.path.insert(0, '/home/sean-campbell/github/willow-2.0/worktrees/upstream-claude-deep-review/scripts')\n"
+            f"sys.path.insert(0, {scripts_dir!r})\n"
             "from merge_findings import deduplicate\n"
             "ndjson = {'a': [{'id': 'x', 'title': 'n'}]}\n"
             "text = {'a': [{'id': 'x', 'title': 't'}]}\n"
